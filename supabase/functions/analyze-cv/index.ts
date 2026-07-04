@@ -73,6 +73,125 @@ const STOP_WORDS = new Set([
   'give', 'must', 'and', 'the', 'for', 'you', 'are', 'but', 'not', 'our', 'out', 'who'
 ]);
 
+function tokenize(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-zA-Z0-9\s#\+\.-]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 1 && !STOP_WORDS.has(w));
+}
+
+function calculateCosineSimilarity(cvText: string, jdText: string): { 
+  cosSim: number; 
+  matchedTech: string[]; 
+  missingTech: string[];
+  matchedSoft: string[];
+  missingSoft: string[];
+  jdTechRequired: string[];
+  jdSoftRequired: string[];
+} {
+  const cvLower = cvText.toLowerCase();
+  const jdLower = jdText.toLowerCase();
+
+  // Extract required tech and soft skills from JD
+  const jdTechRequired = TECH_SKILLS.filter(skill => {
+    const regex = new RegExp(`\\b${skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
+    return regex.test(jdLower);
+  });
+
+  const jdSoftRequired = SOFT_SKILLS.filter(skill => {
+    const regex = new RegExp(`\\b${skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
+    return regex.test(jdLower);
+  });
+
+  // Check matching status in CV
+  const matchedTech = jdTechRequired.filter(skill => {
+    const regex = new RegExp(`\\b${skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
+    return regex.test(cvLower);
+  });
+
+  const missingTech = jdTechRequired.filter(skill => !matchedTech.includes(skill));
+
+  const matchedSoft = jdSoftRequired.filter(skill => {
+    const regex = new RegExp(`\\b${skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
+    return regex.test(cvLower);
+  });
+
+  const missingSoft = jdSoftRequired.filter(skill => !matchedSoft.includes(skill));
+
+  // Tokenize individual words for tf-idf vector mapping
+  const cvTokens = tokenize(cvText);
+  const jdTokens = tokenize(jdText);
+
+  // Build document frequency mapping
+  const uniqueTerms = new Set([...cvTokens, ...jdTokens]);
+  const df: Record<string, number> = {};
+  uniqueTerms.forEach(term => {
+    let count = 0;
+    if (cvTokens.includes(term)) count++;
+    if (jdTokens.includes(term)) count++;
+    df[term] = count;
+  });
+
+  // Calculate IDF for each term: ln(1 + 2 / df)
+  const idf: Record<string, number> = {};
+  uniqueTerms.forEach(term => {
+    idf[term] = Math.log(1 + 2 / df[term]);
+    
+    // Downweight soft skills
+    if (SOFT_SKILLS.includes(term)) {
+      idf[term] *= 0.3;
+    }
+    
+    // Upweight technical/tool skills
+    if (TECH_SKILLS.includes(term) || jdTechRequired.includes(term) || matchedTech.includes(term)) {
+      idf[term] *= 2.0;
+    }
+  });
+
+  // Compute TF-IDF representation helper
+  const getTfIdfVector = (tokens: string[]): Record<string, number> => {
+    const tf: Record<string, number> = {};
+    tokens.forEach(t => {
+      tf[t] = (tf[t] || 0) + 1;
+    });
+
+    const tfidf: Record<string, number> = {};
+    Object.keys(tf).forEach(t => {
+      tfidf[t] = tf[t] * (idf[t] || 1);
+    });
+    return tfidf;
+  };
+
+  const vectorCv = getTfIdfVector(cvTokens);
+  const vectorJd = getTfIdfVector(jdTokens);
+
+  // Compute Cosine Similarity
+  let dotProduct = 0;
+  let normCv = 0;
+  let normJd = 0;
+
+  uniqueTerms.forEach(term => {
+    const valCv = vectorCv[term] || 0;
+    const valJd = vectorJd[term] || 0;
+    dotProduct += valCv * valJd;
+    normCv += valCv * valCv;
+    normJd += valJd * valJd;
+  });
+
+  const cosSim = (normCv > 0 && normJd > 0) ? (dotProduct / (Math.sqrt(normCv) * Math.sqrt(normJd))) : 0;
+
+  return { 
+    cosSim, 
+    matchedTech, 
+    missingTech, 
+    matchedSoft, 
+    missingSoft,
+    jdTechRequired,
+    jdSoftRequired
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -191,59 +310,34 @@ Deno.serve(async (req) => {
         .slice(0, 5);
 
     } else {
-      // Job Description Match Mode
-      const jdLower = job_description.toLowerCase();
-      const jdWords = jdLower.match(/\b\w+\b/g) || [];
-      
-      const jdTechSkills = new Set<string>();
-      TECH_SKILLS.forEach(skill => {
-        if (jdLower.includes(skill)) {
-          jdTechSkills.add(skill);
-        }
-      });
+      // JD-specific scoring using manual TF-IDF and Cosine Similarity
+      const {
+        cosSim,
+        matchedTech,
+        missingTech,
+        matchedSoft,
+        missingSoft,
+        jdTechRequired,
+        jdSoftRequired
+      } = calculateCosineSimilarity(cv_text, job_description);
 
-      let coreJDRequired: Set<string>;
-      if (jdTechSkills.size > 0) {
-        coreJDRequired = jdTechSkills;
-      } else {
-        const customJdTech = new Set<string>();
-        jdWords.forEach(w => {
-          if (w.length > 4 && 
-              !STOP_WORDS.has(w) && 
-              !SOFT_SKILLS.includes(w) && 
-              !ACTION_VERBS.includes(w)) {
-            customJdTech.add(w);
-          }
-        });
-        coreJDRequired = customJdTech;
-      }
+      // Collect keywords found & missing for payload compatibility
+      const foundSkills = [...matchedTech, ...matchedSoft];
+      foundSkills.forEach(s => keywordsFound.add(s));
+      keywordsMissing = [...missingTech, ...missingSoft].slice(0, 8);
 
-      const matchedCoreKeywords = new Set<string>();
-      coreJDRequired.forEach(keyword => {
-        if (textLower.includes(keyword)) {
-          matchedCoreKeywords.add(keyword);
-        }
-      });
+      // Score weightings: 65% tech skill ratio, 25% cosine similarity, 10% soft skills
+      const techRatio = jdTechRequired.length > 0 ? (matchedTech.length / jdTechRequired.length) : 1.0;
+      const softRatio = jdSoftRequired.length > 0 ? (matchedSoft.length / jdSoftRequired.length) : 1.0;
 
-      coreJDRequired.forEach(keyword => {
-        if (!matchedCoreKeywords.has(keyword) && keywordsMissing.length < 5) {
-          keywordsMissing.push(keyword);
-        }
-      });
+      const weightedScore = (techRatio * 65) + (cosSim * 25) + (softRatio * 10);
+      score = Math.round(weightedScore);
 
-      let jdOverlapScore = 0;
-      if (coreJDRequired.size === 0) {
-        jdOverlapScore = 50;
-      } else {
-        jdOverlapScore = Math.round((matchedCoreKeywords.size / coreJDRequired.size) * 100);
-      }
-
-      // Weighted average: 50% JD Overlap, 50% General ATS Health
-      score = Math.round((jdOverlapScore * 0.50) + (generalHealthScore * 0.50));
-
-      // Capped strictly at 25% if there's zero overlap with the core technical requirements
-      if (matchedCoreKeywords.size === 0) {
-        score = Math.min(score, 25);
+      // Domain Mismatch: enforce cap under 35 if technicalRequirements are present but tech matches are zero or under 15%
+      if (jdTechRequired.length > 0 && matchedTech.length === 0) {
+        score = Math.min(score, 30);
+      } else if (jdTechRequired.length > 0 && techRatio < 0.15) {
+        score = Math.min(score, 34);
       }
     }
 

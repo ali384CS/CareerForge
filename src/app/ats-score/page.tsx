@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Script from "next/script";
 import { supabase } from "@/lib/supabase";
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+
 export default function AtsScorePage() {
   const [user, setUser] = useState<any>(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -126,10 +128,18 @@ export default function AtsScorePage() {
     setScore(null);
 
     try {
-      const res = await fetch("/api/score", {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setStatusText("Session expired. Please log in.");
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch(`${supabaseUrl}/functions/v1/analyze-cv`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`
         },
         body: JSON.stringify({
           cv_text: extractedText,
@@ -138,7 +148,7 @@ export default function AtsScorePage() {
       });
 
       const data = await res.json();
-      if (data.success) {
+      if (res.ok && data.success) {
         setScore(data.ats_score);
         setKeywordsFound(data.keywords_found || []);
         setKeywordsMissing(data.keywords_missing || []);
@@ -172,7 +182,7 @@ export default function AtsScorePage() {
       <div className="container mx-auto px-4 py-12 max-w-5xl">
         <div className="mb-10 text-center md:text-left">
           <h1 className="font-outfit text-4xl font-bold text-white mb-2">Check ATS Score</h1>
-          <p className="text-slate-400">Upload your CV to check compatibility and keyword coverage using our Python ML service.</p>
+          <p className="text-slate-400">Upload your CV to check compatibility and keyword coverage using our advanced ATS analyzer.</p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 items-start">
