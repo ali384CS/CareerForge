@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 export default function JobsPage() {
   const [user, setUser] = useState<any>(null);
   const [jobs, setJobs] = useState<any[]>([]);
+  const [marketPulse, setMarketPulse] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -49,6 +50,10 @@ export default function JobsPage() {
         
         const fetchedJobs = data.jobs || [];
         setJobs(fetchedJobs);
+        if (data.market_pulse) {
+          setMarketPulse(data.market_pulse);
+        }
+        
         if (fetchedJobs.length === 0) {
           setSearchStatus("No matching jobs found at this time.");
         } else {
@@ -120,6 +125,33 @@ export default function JobsPage() {
         </div>
       )}
 
+      {!loading && !error && marketPulse && (
+        <div className="glass-card p-6 mb-8 border border-orange-500/30">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-2xl">📈</span>
+            <h2 className="font-outfit text-xl font-bold text-white">Real-time Market Pulse</h2>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800">
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Insight</p>
+              <p className="text-sm text-emerald-400 font-medium">{marketPulse.insight}</p>
+            </div>
+            <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800">
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Salary Trend</p>
+              <p className="text-sm text-white font-medium">{marketPulse.salary_trend}</p>
+            </div>
+            <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800">
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Top Competitor Keywords</p>
+              <div className="flex gap-2 mt-1">
+                {marketPulse.competitor_keywords?.map((kw: string) => (
+                  <span key={kw} className="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded">{kw}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!loading && !error && jobs.length > 0 && (
         <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
           {jobs.map((job, idx) => (
@@ -128,14 +160,27 @@ export default function JobsPage() {
                 <h3 className="font-outfit text-xl font-bold text-white group-hover:text-orange-400 transition-colors">
                   {job.title || job.job_title || 'Software Engineer'}
                 </h3>
-                <span className="bg-orange-500/10 text-orange-400 text-xs font-bold px-2 py-1 rounded-lg border border-orange-500/20">
-                  {job.match_score ? `${job.match_score}% Match` : 'New'}
-                </span>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="bg-orange-500/10 text-orange-400 text-xs font-bold px-2 py-1 rounded-lg border border-orange-500/20">
+                    {job.match_score ? `${job.match_score}% Match` : 'New'}
+                  </span>
+                  {job.posted_hours_ago && (
+                    <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Posted {job.posted_hours_ago}h ago
+                    </span>
+                  )}
+                </div>
               </div>
               
               <div className="mb-4">
                 <p className="text-sm font-semibold text-slate-300">{job.company || job.company_name || 'Tech Corp'}</p>
                 <p className="text-xs text-slate-500">{job.location || 'Remote'}</p>
+              </div>
+              
+              <div className="bg-slate-950/50 rounded-lg p-3 mb-4 border border-slate-800">
+                <p className="text-xs text-slate-400 mb-1"><span className="text-orange-400 font-bold">Auto-Fit Analysis:</span> You are missing <span className="text-white font-semibold">B2B SaaS</span> experience.</p>
+                <p className="text-xs text-slate-500 italic">"Reframe your B2C Growth project to focus on user retention metrics, which translates well to SaaS."</p>
               </div>
               
               <p className="text-sm text-slate-400 leading-relaxed mb-6">

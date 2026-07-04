@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- ====== Meta & SEO ====== -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="CVOptimizer uses AI to analyze, optimize, and match your CV to real job listings — no job description needed. Get your ATS score instantly." />
+  <meta name="theme-color" content="#0f1117" />
+
+  <title>CVOptimizer — AI-Powered CV Analysis &amp; Job Matching</title>
+
+  <!-- ====== Stylesheet ====== -->
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       NAVIGATION BAR
+       Sticky glassmorphism nav with logo, links, and CTA.
+       ============================================================ -->
+  <nav class="navbar" id="main-navbar">
+    <div class="container navbar__inner">
+      <!-- Logo -->
+      <a href="index.html" class="navbar__logo" id="nav-logo">CVOptimizer</a>
+
+      <!-- Desktop nav links -->
+      <ul class="navbar__links" id="nav-links">
+        <li><a href="#features" class="navbar__link" id="nav-link-features">Features</a></li>
+        <li><a href="#how-it-works" class="navbar__link" id="nav-link-how">How It Works</a></li>
+        <li><a href="#testimonials" class="navbar__link" id="nav-link-testimonials">Testimonials</a></li>
+        <li>
+          <!-- CTA — dynamically swapped to "Dashboard" if logged in -->
+          <a href="auth.html" class="btn btn-primary" id="nav-cta">Get Started</a>
+        </li>
+      </ul>
+
+      <!-- Mobile hamburger toggle -->
+      <button class="navbar__hamburger" id="hamburger-toggle" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       HERO SECTION
+       Large headline with gradient text, sub-headline, and CTA.
+       Decorative gradient blobs float in the background.
+       ============================================================ -->
+  <section class="hero section" id="hero">
+    <!-- Floating decorative blobs -->
+    <div class="hero__decor hero__decor--blue" id="hero-decor-blue" aria-hidden="true"></div>
+    <div class="hero__decor hero__decor--purple" id="hero-decor-purple" aria-hidden="true"></div>
+
+    <div class="container">
+      <h1 class="hero__headline gradient-text animate-on-scroll" id="hero-headline">
+        Transform Your CV<br />Into a Job Magnet
+      </h1>
+
+      <p class="hero__sub animate-on-scroll delay-1" id="hero-sub">
+        AI-powered analysis, optimization, and job matching — no job description needed
+      </p>
+
+      <a href="auth.html" class="btn btn-primary btn-lg animate-on-scroll delay-2" id="hero-cta">
+        Analyze My CV →
+      </a>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       FEATURES SECTION
+       3-column grid showcasing core product capabilities.
+       ============================================================ -->
+  <section class="features section" id="features">
+    <div class="container text-center">
+      <span class="section-label animate-on-scroll" id="features-label">Why CVOptimizer</span>
+      <h2 class="animate-on-scroll" id="features-heading">Everything You Need to Land Interviews</h2>
+      <p class="section-subtitle animate-on-scroll delay-1" id="features-subtitle">
+        Our AI engine dissects your CV, identifies weak spots, and connects you with matching opportunities.
+      </p>
+
+      <div class="features__grid" id="features-grid">
+        <!-- Feature Card 1 -->
+        <div class="card animate-on-scroll delay-1" id="feature-analysis">
+          <div class="card__icon" id="feature-analysis-icon">📊</div>
+          <h3 class="card__title" id="feature-analysis-title">Smart CV Analysis</h3>
+          <p class="card__desc" id="feature-analysis-desc">
+            Instant ATS compatibility score, keyword gap detection, and section-by-section feedback so you know exactly what recruiters see.
+          </p>
+        </div>
+
+        <!-- Feature Card 2 -->
+        <div class="card animate-on-scroll delay-2" id="feature-optimization">
+          <div class="card__icon" id="feature-optimization-icon">✨</div>
+          <h3 class="card__title" id="feature-optimization-title">AI Optimization</h3>
+          <p class="card__desc" id="feature-optimization-desc">
+            One-click rewriting powered by GPT — rephrases bullet points, adds power verbs, and aligns your CV with industry standards.
+          </p>
+        </div>
+
+        <!-- Feature Card 3 -->
+        <div class="card animate-on-scroll delay-3" id="feature-matching">
+          <div class="card__icon" id="feature-matching-icon">🎯</div>
+          <h3 class="card__title" id="feature-matching-title">Job Matching</h3>
+          <p class="card__desc" id="feature-matching-desc">
+            Automatically matched to real, live job listings that fit your skills and experience — no endless scrolling required.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       HOW IT WORKS — Timeline / Steps
+       3-step visual flow with numbered circles and connector line.
+       ============================================================ -->
+  <section class="steps section" id="how-it-works">
+    <div class="container text-center">
+      <span class="section-label animate-on-scroll" id="steps-label">How It Works</span>
+      <h2 class="animate-on-scroll" id="steps-heading">Three Steps to Your Next Role</h2>
+      <p class="section-subtitle animate-on-scroll delay-1" id="steps-subtitle">
+        Upload once, get insights and matched jobs in seconds.
+      </p>
+
+      <div class="steps__grid" id="steps-grid">
+        <!-- Step 1 -->
+        <div class="step-card animate-on-scroll delay-1" id="step-upload">
+          <div class="step-card__number" id="step-upload-number">1</div>
+          <div class="step-card__icon" id="step-upload-icon">📄</div>
+          <h4 class="step-card__title" id="step-upload-title">Upload Your CV</h4>
+          <p class="step-card__desc" id="step-upload-desc">
+            Drag &amp; drop your PDF or Word CV — we parse it instantly and securely.
+          </p>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="step-card animate-on-scroll delay-2" id="step-analyze">
+          <div class="step-card__number" id="step-analyze-number">2</div>
+          <div class="step-card__icon" id="step-analyze-icon">🤖</div>
+          <h4 class="step-card__title" id="step-analyze-title">Get AI Analysis</h4>
+          <p class="step-card__desc" id="step-analyze-desc">
+            Receive an ATS score, keyword report, and actionable suggestions within seconds.
+          </p>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="step-card animate-on-scroll delay-3" id="step-land">
+          <div class="step-card__number" id="step-land-number">3</div>
+          <div class="step-card__icon" id="step-land-icon">🚀</div>
+          <h4 class="step-card__title" id="step-land-title">Land Your Dream Job</h4>
+          <p class="step-card__desc" id="step-land-desc">
+            Browse curated job matches, download your optimized CV, and start applying with confidence.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       TESTIMONIALS
+       3 student testimonial cards with star ratings and avatars.
+       ============================================================ -->
+  <section class="testimonials section" id="testimonials">
+    <div class="container text-center">
+      <span class="section-label animate-on-scroll" id="testimonials-label">Testimonials</span>
+      <h2 class="animate-on-scroll" id="testimonials-heading">Loved by Students &amp; Graduates</h2>
+      <p class="section-subtitle animate-on-scroll delay-1" id="testimonials-subtitle">
+        Real results from real people who transformed their job search.
+      </p>
+
+      <div class="testimonials__grid" id="testimonials-grid">
+        <!-- Testimonial 1 -->
+        <div class="testimonial-card animate-on-scroll delay-1" id="testimonial-1">
+          <div class="testimonial-card__stars" id="testimonial-1-stars">★★★★★</div>
+          <p class="testimonial-card__quote" id="testimonial-1-quote">
+            "I uploaded my CV expecting generic feedback, but CVOptimizer pinpointed the exact keywords I was missing for data-science roles. Landed three interviews in a week!"
+          </p>
+          <div class="testimonial-card__author" id="testimonial-1-author">
+            <div class="testimonial-card__avatar">A</div>
+            <div>
+              <div class="testimonial-card__name">Amira Hassan</div>
+              <div class="testimonial-card__role">MSc Data Science, University of Edinburgh</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Testimonial 2 -->
+        <div class="testimonial-card animate-on-scroll delay-2" id="testimonial-2">
+          <div class="testimonial-card__stars" id="testimonial-2-stars">★★★★★</div>
+          <p class="testimonial-card__quote" id="testimonial-2-quote">
+            "The job matching feature is wild — it found a startup role I'd never have discovered on my own. My ATS score jumped from 42 to 89 after the AI rewrite."
+          </p>
+          <div class="testimonial-card__author" id="testimonial-2-author">
+            <div class="testimonial-card__avatar">J</div>
+            <div>
+              <div class="testimonial-card__name">James O'Brien</div>
+              <div class="testimonial-card__role">BEng Software Engineering, UCL</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Testimonial 3 -->
+        <div class="testimonial-card animate-on-scroll delay-3" id="testimonial-3">
+          <div class="testimonial-card__stars" id="testimonial-3-stars">★★★★★</div>
+          <p class="testimonial-card__quote" id="testimonial-3-quote">
+            "As a liberal arts grad breaking into tech, I had no idea my CV was so poorly formatted for ATS. CVOptimizer literally saved my career switch."
+          </p>
+          <div class="testimonial-card__author" id="testimonial-3-author">
+            <div class="testimonial-card__avatar">S</div>
+            <div>
+              <div class="testimonial-card__name">Sofia Petrović</div>
+              <div class="testimonial-card__role">BA English Literature, University of Manchester</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       FOOTER
+       Brand info, quick links, contact, and copyright.
+       ============================================================ -->
+  <footer class="footer" id="main-footer">
+    <div class="container">
+      <div class="footer__grid" id="footer-grid">
+        <!-- Brand column -->
+        <div id="footer-brand">
+          <a href="index.html" class="navbar__logo">CVOptimizer</a>
+          <p class="footer__brand-desc" id="footer-tagline">
+            AI-powered CV analysis, optimization, and job matching — built for ambitious job seekers.
+          </p>
+        </div>
+
+        <!-- Quick links column -->
+        <div id="footer-links">
+          <h4 class="footer__heading">Quick Links</h4>
+          <a href="#features" class="footer__link" id="footer-link-features">Features</a>
+          <a href="#how-it-works" class="footer__link" id="footer-link-how">How It Works</a>
+          <a href="#testimonials" class="footer__link" id="footer-link-testimonials">Testimonials</a>
+          <a href="auth.html" class="footer__link" id="footer-link-auth">Get Started</a>
+        </div>
+
+        <!-- Contact column -->
+        <div id="footer-contact">
+          <h4 class="footer__heading">Contact</h4>
+          <a href="mailto:hello@cvoptimizer.io" class="footer__link" id="footer-email">hello@cvoptimizer.io</a>
+          <a href="#" class="footer__link" id="footer-twitter">Twitter / X</a>
+          <a href="#" class="footer__link" id="footer-linkedin">LinkedIn</a>
+        </div>
+      </div>
+
+      <div class="footer__bottom" id="footer-copyright">
+        &copy; 2026 CVOptimizer. All rights reserved.
+      </div>
+    </div>
+  </footer>
+
+  <!-- ============================================================
+       TOAST CONTAINER — notifications injected here by JS
+       ============================================================ -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- ====== Scripts ====== -->
+  <!-- Supabase client SDK (loaded first so helpers can reference it) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- App configuration (Supabase URL & anon key) -->
+  <script src="js/config.js"></script>
+  <!-- Supabase helper functions (auth wrappers) -->
+  <script src="js/supabase-client.js"></script>
+  <!-- Landing-page specific logic -->
+  <script src="js/landing.js"></script>
+</body>
+</html>

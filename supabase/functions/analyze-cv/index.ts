@@ -292,13 +292,37 @@ Deno.serve(async (req) => {
       overall_feedback = "Your CV requires significant improvements. It may be filtered out by ATS systems. Focus on adding keywords and strong action verbs.";
     }
 
+    // Hiring Manager Simulator
+    const hiringManagerObjections = [];
+    if (totalWords < 200) hiringManagerObjections.push("Too brief. Doesn't show enough depth of experience for a senior role.");
+    if (actionVerbsFound < 5) hiringManagerObjections.push("Lacks impact. I see what you did, but not what you achieved.");
+    if (quantifiableMatches.length === 0) hiringManagerObjections.push("No metrics. I need to see numbers to prove your scale.");
+    if (hasJobDescription && keywordsMissing.length > 3) hiringManagerObjections.push("Missing core technical requirements listed in the JD.");
+    if (hiringManagerObjections.length === 0) hiringManagerObjections.push("Looks solid. I'd definitely bring this candidate in for a phone screen.");
+
+    // Gap & Red Flag Explainer
+    const redFlags = [];
+    if (totalWords > 800) redFlags.push({ issue: "Lengthy Resume", explanation: "I have over 10 years of detailed experience, but I can provide a 1-page executive summary if needed." });
+    if (sectionsFound < 4) redFlags.push({ issue: "Missing Sections", explanation: "I prioritize a functional format focusing on direct impact over traditional structural sections." });
+    if (redFlags.length === 0) redFlags.push({ issue: "Clean Profile", explanation: "No major red flags detected." });
+
+    // Skill Graph
+    const missingSkillsGraph = keywordsMissing.map(skill => ({
+      skill: skill,
+      course_suggestion: `Free Codecamp: Advanced ${skill.charAt(0).toUpperCase() + skill.slice(1)}`,
+      time_to_close: "2 weeks"
+    }));
+
     const resultPayload = {
       success: true,
       ats_score: score,
       keywords_found: Array.from(keywordsFound),
       keywords_missing: keywordsMissing,
       suggestions: suggestions,
-      overall_feedback: overall_feedback
+      overall_feedback: overall_feedback,
+      hiring_manager_objections: hiringManagerObjections,
+      red_flags: redFlags,
+      skill_graph: missingSkillsGraph
     };
 
     // Save to DB using schema-compliant columns

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Script from "next/script";
 import { supabase } from "@/lib/supabase";
 import { formatCVText, renderFormattedCV, exportPDF } from "@/lib/cv-formatter";
+import NegotiationSimulator from "@/components/NegotiationSimulator";
+import InterviewPredictor from "@/components/InterviewPredictor";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 
@@ -31,6 +33,9 @@ export default function Dashboard() {
   const [keywordsFound, setKeywordsFound] = useState<string[]>([]);
   const [keywordsMissing, setKeywordsMissing] = useState<string[]>([]);
   const [optimizedText, setOptimizedText] = useState("");
+  const [hiringManagerObjections, setHiringManagerObjections] = useState<string[]>([]);
+  const [redFlags, setRedFlags] = useState<any[]>([]);
+  const [skillGraph, setSkillGraph] = useState<any[]>([]);
   
   // Restore cached results from sessionStorage on mount
   useEffect(() => {
@@ -44,6 +49,9 @@ export default function Dashboard() {
         if (data.keywordsFound) setKeywordsFound(data.keywordsFound);
         if (data.keywordsMissing) setKeywordsMissing(data.keywordsMissing);
         if (data.optimizedText) setOptimizedText(data.optimizedText);
+        if (data.hiringManagerObjections) setHiringManagerObjections(data.hiringManagerObjections);
+        if (data.redFlags) setRedFlags(data.redFlags);
+        if (data.skillGraph) setSkillGraph(data.skillGraph);
       }
     } catch {}
   }, []);
@@ -53,11 +61,12 @@ export default function Dashboard() {
     if (extractedText || optimizedText || atsScore !== null) {
       try {
         sessionStorage.setItem("dashboard_results", JSON.stringify({
-          extractedText, jobDescription, atsScore, keywordsFound, keywordsMissing, optimizedText
+          extractedText, jobDescription, atsScore, keywordsFound, keywordsMissing, optimizedText,
+          hiringManagerObjections, redFlags, skillGraph
         }));
       } catch {}
     }
-  }, [extractedText, jobDescription, atsScore, keywordsFound, keywordsMissing, optimizedText]);
+  }, [extractedText, jobDescription, atsScore, keywordsFound, keywordsMissing, optimizedText, hiringManagerObjections, redFlags, skillGraph]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -121,6 +130,9 @@ export default function Dashboard() {
     setKeywordsFound([]);
     setKeywordsMissing([]);
     setOptimizedText("");
+    setHiringManagerObjections([]);
+    setRedFlags([]);
+    setSkillGraph([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -207,6 +219,9 @@ export default function Dashboard() {
         setAtsScore(extractedScore);
         setKeywordsFound(payload.keywords_found || []);
         setKeywordsMissing(payload.keywords_missing || []);
+        setHiringManagerObjections(payload.hiring_manager_objections || []);
+        setRedFlags(payload.red_flags || []);
+        setSkillGraph(payload.skill_graph || []);
       }
 
       setStatusText("Optimizing CV formatting...");
@@ -376,8 +391,71 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
+
+            {hiringManagerObjections.length > 0 && (
+              <div className="glass-card p-6 border-orange-500/30 border">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="h-8 w-8 bg-orange-500/20 rounded-full flex items-center justify-center">
+                    <span className="text-orange-400 text-lg">🧐</span>
+                  </div>
+                  <h2 className="font-outfit text-xl font-bold text-white">Hiring Manager's Take</h2>
+                </div>
+                <ul className="space-y-3">
+                  {hiringManagerObjections.map((obj, i) => (
+                    <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                      <span className="text-orange-400 mt-0.5">•</span>
+                      <span>{obj}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {redFlags.length > 0 && (
+              <div className="glass-card p-6">
+                <h2 className="font-outfit text-xl font-bold text-white mb-4">Red Flags & Explainers</h2>
+                <div className="space-y-4">
+                  {redFlags.map((flag, i) => (
+                    <div key={i} className="bg-slate-950/50 p-4 rounded-xl border border-slate-700">
+                      <h4 className="text-red-400 font-bold text-sm mb-1">{flag.issue}</h4>
+                      <p className="text-slate-400 text-xs italic">"How to explain this in an interview:"</p>
+                      <p className="text-white text-sm mt-1">"{flag.explanation}"</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {skillGraph.length > 0 && (
+              <div className="glass-card p-6">
+                <h2 className="font-outfit text-xl font-bold text-white mb-4">Skill Graph & Upskilling</h2>
+                <p className="text-sm text-slate-400 mb-4">You are missing these skills for the role. Here's how to close the gap:</p>
+                <div className="space-y-3">
+                  {skillGraph.map((sg, i) => (
+                    <div key={i} className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
+                      <span className="text-sm font-bold text-slate-200">{sg.skill}</span>
+                      <div className="text-right">
+                        <a href="#" className="text-xs text-blue-400 hover:underline block">{sg.course_suggestion}</a>
+                        <span className="text-[10px] text-slate-500">Est. {sg.time_to_close}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Next-Gen Tools Section */}
+        {(atsScore !== null) && (
+          <div className="mt-8">
+            <h2 className="font-outfit text-2xl font-bold text-white mb-6">Next-Gen Preparation Tools</h2>
+            <div className="grid md:grid-cols-2 gap-8">
+              <InterviewPredictor />
+              <NegotiationSimulator />
+            </div>
+          </div>
+        )}
 
         {/* Full Width: Optimized CV Preview */}
         {optimizedText && (

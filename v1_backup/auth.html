@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- ====== Meta & SEO ====== -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Sign in or create an account on CVOptimizer to start optimizing your CV with AI." />
+  <meta name="theme-color" content="#0f1117" />
+
+  <title>Sign In — CVOptimizer</title>
+
+  <!-- ====== Stylesheet ====== -->
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="auth-page">
+
+  <!-- ============================================================
+       NAVIGATION BAR (simplified for auth page)
+       ============================================================ -->
+  <nav class="navbar" id="auth-navbar">
+    <div class="container navbar__inner">
+      <a href="index.html" class="navbar__logo" id="auth-nav-logo">CVOptimizer</a>
+      <a href="index.html" class="btn btn-ghost" id="auth-nav-back">← Back to Home</a>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       AUTH WRAPPER — centres the auth card vertically
+       ============================================================ -->
+  <main class="auth-wrapper" id="auth-wrapper">
+    <div class="auth-card" id="auth-card">
+
+      <!-- Header -->
+      <div class="auth-card__header" id="auth-header">
+        <h2 class="gradient-text" id="auth-title">Welcome Back</h2>
+        <p id="auth-subtitle">Sign in to continue optimizing your CV</p>
+      </div>
+
+      <!-- ====== Tab Switcher ====== -->
+      <div class="auth-tabs" id="auth-tabs">
+        <button class="auth-tab active" id="tab-login" data-tab="login">Login</button>
+        <button class="auth-tab" id="tab-signup" data-tab="signup">Sign Up</button>
+      </div>
+
+      <!-- ====== Error / Success Message Areas ====== -->
+      <div class="auth-message" id="auth-error" role="alert"></div>
+      <div class="auth-message" id="auth-success" role="status"></div>
+
+      <!-- ============================================================
+           LOGIN FORM
+           ============================================================ -->
+      <form class="auth-form-panel active" id="login-form" novalidate>
+
+        <!-- Email -->
+        <div class="form-group" id="login-email-group">
+          <label for="login-email" class="form-label">Email Address</label>
+          <span class="input-icon" aria-hidden="true">✉</span>
+          <input
+            type="email"
+            id="login-email"
+            class="form-input"
+            placeholder="you@example.com"
+            autocomplete="email"
+            required
+          />
+        </div>
+
+        <!-- Password -->
+        <div class="form-group" id="login-password-group">
+          <label for="login-password" class="form-label">Password</label>
+          <span class="input-icon" aria-hidden="true">🔒</span>
+          <input
+            type="password"
+            id="login-password"
+            class="form-input"
+            placeholder="••••••••"
+            autocomplete="current-password"
+            required
+          />
+          <button type="button" class="toggle-password" id="login-toggle-pw" aria-label="Toggle password visibility">👁</button>
+        </div>
+
+        <!-- Forgot password -->
+        <a href="#" class="forgot-link" id="forgot-password-link">Forgot Password?</a>
+
+        <!-- Submit -->
+        <button type="submit" class="btn btn-primary btn-lg" id="login-submit" style="width:100%;">
+          Log In
+        </button>
+
+        <!-- Divider -->
+        <div class="auth-divider" id="login-divider">or</div>
+
+        <!-- Google OAuth -->
+        <button type="button" class="btn-google" id="login-google-btn">
+          <!-- Google "G" icon (inline SVG) -->
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 0 1 0-9.18l-7.98-6.19a24.0 24.0 0 0 0 0 21.56l7.98-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+          Continue with Google
+        </button>
+      </form>
+
+      <!-- ============================================================
+           SIGNUP FORM (hidden by default)
+           ============================================================ -->
+      <form class="auth-form-panel" id="signup-form" novalidate>
+
+        <!-- Full Name -->
+        <div class="form-group" id="signup-name-group">
+          <label for="signup-name" class="form-label">Full Name</label>
+          <span class="input-icon" aria-hidden="true">👤</span>
+          <input
+            type="text"
+            id="signup-name"
+            class="form-input"
+            placeholder="Jane Doe"
+            autocomplete="name"
+            required
+          />
+        </div>
+
+        <!-- Email -->
+        <div class="form-group" id="signup-email-group">
+          <label for="signup-email" class="form-label">Email Address</label>
+          <span class="input-icon" aria-hidden="true">✉</span>
+          <input
+            type="email"
+            id="signup-email"
+            class="form-input"
+            placeholder="you@example.com"
+            autocomplete="email"
+            required
+          />
+        </div>
+
+        <!-- Password with strength indicator -->
+        <div class="form-group" id="signup-password-group">
+          <label for="signup-password" class="form-label">Password</label>
+          <span class="input-icon" aria-hidden="true">🔒</span>
+          <input
+            type="password"
+            id="signup-password"
+            class="form-input"
+            placeholder="Min. 6 characters"
+            autocomplete="new-password"
+            required
+          />
+          <button type="button" class="toggle-password" id="signup-toggle-pw" aria-label="Toggle password visibility">👁</button>
+          <!-- Strength bar -->
+          <div class="password-strength" id="password-strength">
+            <div class="password-strength__bar" id="password-strength-bar"></div>
+          </div>
+          <span class="password-strength-label" id="password-strength-label"></span>
+        </div>
+
+        <!-- Confirm Password -->
+        <div class="form-group" id="signup-confirm-group">
+          <label for="signup-confirm" class="form-label">Confirm Password</label>
+          <span class="input-icon" aria-hidden="true">🔒</span>
+          <input
+            type="password"
+            id="signup-confirm"
+            class="form-input"
+            placeholder="Re-enter password"
+            autocomplete="new-password"
+            required
+          />
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" class="btn btn-primary btn-lg" id="signup-submit" style="width:100%;">
+          Create Account
+        </button>
+
+        <!-- Divider -->
+        <div class="auth-divider" id="signup-divider">or</div>
+
+        <!-- Google OAuth -->
+        <button type="button" class="btn-google" id="signup-google-btn">
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 0 1 0-9.18l-7.98-6.19a24.0 24.0 0 0 0 0 21.56l7.98-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+          Continue with Google
+        </button>
+      </form>
+
+    </div><!-- /.auth-card -->
+  </main>
+
+  <!-- ============================================================
+       TOAST CONTAINER — notifications injected here by JS
+       ============================================================ -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- ====== Scripts ====== -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/supabase-client.js"></script>
+  <script src="js/auth.js"></script>
+</body>
+</html>

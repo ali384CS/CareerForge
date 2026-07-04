@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Outfit } from "next/font/google";
 import Navbar from "@/components/Navbar";
+import AIAgent from "@/components/AIAgent";
 import "./globals.css";
 
 const inter = Inter({
@@ -35,6 +36,7 @@ export default function RootLayout({
         <main className="flex-1">
           {children}
         </main>
+        <AIAgent />
       </body>
     </html>
   );

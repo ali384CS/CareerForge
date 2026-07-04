@@ -167,6 +167,9 @@ export async function POST(req: Request) {
         .replace(/\s+/g, " ")
         .trim()
         .substring(0, 150);
+        
+      // Mock posted_hours_ago for "hidden <24h" feel
+      const postedHoursAgo = Math.floor(Math.random() * 24) + 1;
 
       return {
         job_title: job.title,
@@ -174,7 +177,8 @@ export async function POST(req: Request) {
         job_url: job.url,
         location: job.location || "Remote",
         match_score: score,
-        snippet: cleanSnippet
+        snippet: cleanSnippet,
+        posted_hours_ago: postedHoursAgo
       };
     });
 
@@ -184,9 +188,18 @@ export async function POST(req: Request) {
 
     console.log(`[Jobs API] Returning ${finalJobs.length} scored jobs (isFallback: ${isFallback})`);
 
+    // Generate Real-time Market Pulse mock data
+    const topSkill = topKeywords[0] || "Software Engineering";
+    const marketPulse = {
+      insight: `Jobs for '${topSkill}' are up 42% this month.`,
+      salary_trend: "+15% YoY",
+      competitor_keywords: ["HubSpot", "GTM", "AWS"]
+    };
+
     return NextResponse.json({
       success: true,
-      jobs: finalJobs
+      jobs: finalJobs,
+      market_pulse: marketPulse
     });
 
   } catch (error: any) {
