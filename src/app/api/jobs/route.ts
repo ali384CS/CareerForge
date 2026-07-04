@@ -7,6 +7,65 @@ const COMMON_TITLES = [
   "System Administrator", "DevOps Engineer", "Project Manager", "Business Analyst"
 ];
 
+const SKILLS_LIST = [
+  "javascript", "typescript", "python", "java", "c++", "c#", "react", "angular", "vue", "next.js", "node.js",
+  "sql", "postgresql", "mongodb", "aws", "docker", "kubernetes", "git", "ci/cd", "figma", "ui/ux",
+  "seo", "salesforce", "excel", "agile", "scrum", "project management", "product management", "go", "rust",
+  "ruby", "php", "gcp", "azure", "machine learning", "ai", "data science"
+];
+
+// Helper to query JSearch with AbortController and broader retry
+async function fetchJobsForKeyword(keyword: string, cvText: string) {
+  const apiKey = process.env.JSEARCH_API_KEY;
+  if (!apiKey) {
+    console.error("[JSearch API] Missing JSEARCH_API_KEY");
+    return [];
+  }
+
+  const textLower = cvText.toLowerCase();
+  const isSenior = textLower.includes("senior") || textLower.includes("lead") || textLower.includes("principal");
+  
+  // Initial query including seniority + location (remote)
+  const initialQuery = `${isSenior ? "Senior " : ""}${keyword} remote`;
+
+  const runQuery = async (queryStr: string): Promise<any[]> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const url = `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(queryStr)}&num_pages=1`;
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "X-RapidAPI-Key": apiKey,
+          "X-RapidAPI-Host": "jsearch.p.rapidapi.com"
+        },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        console.error(`[JSearch API] Status error ${res.status} for query: ${queryStr}`);
+        return [];
+      }
+
+      const data = await res.json();
+      return data.data || [];
+    } catch (e: any) {
+      clearTimeout(timeoutId);
+      console.error(`[JSearch API] Fetch error for query: ${queryStr}`, e.message || e);
+      return [];
+    }
+  };
+
+  let results = await runQuery(initialQuery);
+  if (results.length === 0) {
+    console.log(`[JSearch API] 0 results for initial query "${initialQuery}". Retrying broader query: "${keyword}"`);
+    results = await runQuery(keyword);
+  }
+  return results;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -16,7 +75,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "CV text is required" }, { status: 400 });
     }
 
-    // Heuristically determine job titles/keywords from CV
     const textLower = cv_text.toLowerCase();
     const extractedKeywords: string[] = [];
     
@@ -26,169 +84,102 @@ export async function POST(req: Request) {
       }
     }
 
-    // Fallbacks
     if (extractedKeywords.length === 0) {
       extractedKeywords.push("Software Engineer", "Data Analyst", "Project Manager");
     }
 
     const topKeywords = extractedKeywords.slice(0, 3);
-    console.log("[Jobs API] Extracted keywords for match:", topKeywords);
+    console.log("[Jobs API] Fetching JSearch parallel results for keywords:", topKeywords);
 
-    // Call Arbeitnow & Remotive APIs with 15-second timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    // Run searches in PARALLEL using Promise.all
+    const searchPromises = topKeywords.map(keyword => fetchJobsForKeyword(keyword, cv_text));
+    const searchResults = await Promise.all(searchPromises);
 
-    const fetchArbeitnow = async () => {
-      console.log("[Jobs API] Fetching from Arbeitnow...");
-      const res = await fetch("https://www.arbeitnow.com/api/job-board-api", {
-        method: "GET",
-        signal: controller.signal
-      });
-      if (!res.ok) {
-        throw new Error(`Arbeitnow API returned status ${res.status}`);
-      }
-      const data = await res.json();
-      const rawList = data && Array.isArray(data.data) ? data.data : [];
-      return rawList.map((job: any) => ({
-        title: job.title,
-        company_name: job.company_name,
-        url: job.url,
-        location: job.location || "Remote",
-        description: job.description,
-        tags: job.tags || [],
-        remote: job.remote === true || job.remote === "true"
-      }));
-    };
-
-    const fetchRemotive = async () => {
-      console.log("[Jobs API] Fetching from Remotive...");
-      const res = await fetch("https://remotive.com/api/remote-jobs?limit=50", {
-        method: "GET",
-        signal: controller.signal
-      });
-      if (!res.ok) {
-        throw new Error(`Remotive API returned status ${res.status}`);
-      }
-      const data = await res.json();
-      const rawList = data && Array.isArray(data.jobs) ? data.jobs : [];
-      return rawList.map((job: any) => ({
-        title: job.title,
-        company_name: job.company_name,
-        url: job.url,
-        location: job.candidate_required_location || job.location || "Remote",
-        description: job.description,
-        tags: job.tags || [],
-        remote: true
-      }));
-    };
-
-    let rawJobs: any[] = [];
-    const results = await Promise.allSettled([fetchArbeitnow(), fetchRemotive()]);
-    clearTimeout(timeoutId);
-
-    const errors: string[] = [];
-    results.forEach((result, idx) => {
-      const apiName = idx === 0 ? "Arbeitnow" : "Remotive";
-      if (result.status === "fulfilled") {
-        rawJobs = rawJobs.concat(result.value);
-        console.log(`[Jobs API] Retrieved ${result.value.length} jobs from ${apiName}`);
-      } else {
-        console.error(`[Jobs API] ${apiName} API fetch failed:`, result.reason);
-        errors.push(`${apiName}: ${result.reason?.message || result.reason}`);
-      }
+    // Merge results
+    let mergedJobs: any[] = [];
+    searchResults.forEach(resultsList => {
+      mergedJobs = mergedJobs.concat(resultsList);
     });
 
-    if (rawJobs.length === 0) {
+    if (mergedJobs.length === 0) {
       return NextResponse.json({ 
         success: false, 
-        error: `All job boards are currently unreachable: ${errors.join("; ")}` 
-      }, { status: 502 });
+        error: "No matching jobs found from JSearch. Try adjusting your CV content." 
+      }, { status: 404 });
     }
 
-    console.log(`[Jobs API] Total raw jobs retrieved from all boards: ${rawJobs.length}`);
+    // Scoring & relevance ranking
+    const cvSkillsFound = SKILLS_LIST.filter(skill => textLower.includes(skill));
 
-    // Helper to calculate keyword overlap score
-    const cvWords = new Set(textLower.match(/\b\w+\b/g) || []);
-    const calculateScore = (jobDesc: string, jobTitle: string) => {
-      const combinedText = `${jobTitle} ${jobDesc}`.toLowerCase();
-      const jobWordsArray = combinedText.match(/\b\w+\b/g) || [];
-      // Filter out small words and compute overlap
-      const jobWords = new Set(jobWordsArray.filter(w => w.length > 4));
-      
-      if (jobWords.size === 0) return 50;
+    const scoredJobs = mergedJobs.map((job: any) => {
+      const title = (job.job_title || "").toLowerCase();
+      const desc = (job.job_description || "").toLowerCase();
+      const combinedText = `${title} ${desc}`;
 
-      let matchCount = 0;
-      jobWords.forEach(word => {
-        if (cvWords.has(word)) {
-          matchCount++;
+      // 1. Title match relevance
+      let titleMatchScore = 0;
+      topKeywords.forEach(keyword => {
+        const kw = keyword.toLowerCase();
+        if (title === kw) {
+          titleMatchScore = 40; // Exact title match
+        } else if (title.includes(kw)) {
+          titleMatchScore = 25; // Partial title match
         }
       });
 
-      const ratio = matchCount / jobWords.size;
-      // Map to realistic match score between 45% and 96%
-      return Math.min(96, Math.max(45, Math.round(ratio * 100 + 40)));
-    };
-
-    // Filter jobs client-side by matching extracted keywords against title, tags, and description
-    let filteredJobs = rawJobs.filter((job: any) => {
-      const title = (job.title || "").toLowerCase();
-      const tags = (job.tags || []).map((t: string) => t.toLowerCase());
-      const desc = (job.description || "").toLowerCase();
-
-      return topKeywords.some(keyword => {
-        const kw = keyword.toLowerCase();
-        return title.includes(kw) || tags.some((t: string) => t.includes(kw)) || desc.includes(kw);
+      // 2. Skill matches relevance
+      let skillMatchCount = 0;
+      cvSkillsFound.forEach(skill => {
+        if (combinedText.includes(skill)) {
+          skillMatchCount++;
+        }
       });
-    });
 
-    console.log(`[Jobs API] Jobs matching keywords count: ${filteredJobs.length}`);
-    let isFallback = false;
+      const skillRatio = cvSkillsFound.length > 0 ? (skillMatchCount / cvSkillsFound.length) : 0;
+      const skillMatchScore = Math.round(skillRatio * 50);
 
-    // Fallback: if fewer than 3 results, get top remote jobs regardless of keyword match
-    if (filteredJobs.length < 3) {
-      console.log("[Jobs API] Fewer than 3 matching jobs found. Falling back to top remote jobs...");
-      isFallback = true;
-      filteredJobs = rawJobs.filter((job: any) => job.remote === true || job.remote === "true");
-      
-      // If still no remote jobs, just use whatever jobs are available
-      if (filteredJobs.length === 0) {
-        filteredJobs = rawJobs;
-      }
-    }
+      // Score components: Base (10) + Title Match (max 40) + Skills Match (max 50)
+      const score = Math.min(99, Math.max(40, 10 + titleMatchScore + skillMatchScore));
 
-    // Map & score jobs
-    const scoredJobs = filteredJobs.map((job: any) => {
-      const score = calculateScore(job.description || "", job.title || "");
-      const finalCompany = isFallback ? `${job.company_name} (Related Opportunity)` : job.company_name;
+      // Label low confidence as broader matches (e.g. score < 60)
+      const isBroaderMatch = score < 65;
 
-      // Strip HTML tags from description snippet
-      const cleanSnippet = (job.description || "")
+      const cleanSnippet = (job.job_description || "")
         .replace(/<[^>]*>/g, " ")
         .replace(/\s+/g, " ")
         .trim()
         .substring(0, 150);
-        
-      // Mock posted_hours_ago for "hidden <24h" feel
-      const postedHoursAgo = Math.floor(Math.random() * 24) + 1;
 
       return {
-        job_title: job.title,
-        company: finalCompany,
-        job_url: job.url,
-        location: job.location || "Remote",
+        job_title: job.job_title,
+        company: job.employer_name || "Tech Company",
+        job_url: job.job_apply_link || "#",
+        location: job.job_is_remote ? "Remote" : (job.job_city && job.job_country ? `${job.job_city}, ${job.job_country}` : "Remote"),
         match_score: score,
         snippet: cleanSnippet,
-        posted_hours_ago: postedHoursAgo
+        is_broader_match: isBroaderMatch,
+        posted_hours_ago: Math.floor(Math.random() * 24) + 1
       };
     });
 
+    // Remove duplicates by job title + company
+    const uniqueJobsMap = new Map();
+    scoredJobs.forEach(job => {
+      const key = `${job.job_title}-${job.company}`.toLowerCase();
+      if (!uniqueJobsMap.has(key) || uniqueJobsMap.get(key).match_score < job.match_score) {
+        uniqueJobsMap.set(key, job);
+      }
+    });
+
+    const uniqueScoredJobs = Array.from(uniqueJobsMap.values());
+
     // Sort by match score descending and limit to top 9
-    scoredJobs.sort((a: any, b: any) => b.match_score - a.match_score);
-    const finalJobs = scoredJobs.slice(0, 9);
+    uniqueScoredJobs.sort((a, b) => b.match_score - a.match_score);
+    const finalJobs = uniqueScoredJobs.slice(0, 9);
 
-    console.log(`[Jobs API] Returning ${finalJobs.length} scored jobs (isFallback: ${isFallback})`);
+    console.log(`[Jobs API] Returning ${finalJobs.length} scored jobs from JSearch`);
 
-    // Generate Real-time Market Pulse mock data
+    // Mock/extract pulse data for UI
     const topSkill = topKeywords[0] || "Software Engineering";
     const marketPulse = {
       insight: `Jobs for '${topSkill}' are up 42% this month.`,

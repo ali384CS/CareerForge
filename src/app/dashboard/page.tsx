@@ -36,6 +36,7 @@ export default function Dashboard() {
   const [hiringManagerObjections, setHiringManagerObjections] = useState<string[]>([]);
   const [redFlags, setRedFlags] = useState<any[]>([]);
   const [skillGraph, setSkillGraph] = useState<any[]>([]);
+  const [optimizedCvId, setOptimizedCvId] = useState<string | null>(null);
   
   // Restore cached results from sessionStorage on mount
   useEffect(() => {
@@ -52,6 +53,7 @@ export default function Dashboard() {
         if (data.hiringManagerObjections) setHiringManagerObjections(data.hiringManagerObjections);
         if (data.redFlags) setRedFlags(data.redFlags);
         if (data.skillGraph) setSkillGraph(data.skillGraph);
+        if (data.optimizedCvId) setOptimizedCvId(data.optimizedCvId);
       }
     } catch {}
   }, []);
@@ -62,11 +64,11 @@ export default function Dashboard() {
       try {
         sessionStorage.setItem("dashboard_results", JSON.stringify({
           extractedText, jobDescription, atsScore, keywordsFound, keywordsMissing, optimizedText,
-          hiringManagerObjections, redFlags, skillGraph
+          hiringManagerObjections, redFlags, skillGraph, optimizedCvId
         }));
       } catch {}
     }
-  }, [extractedText, jobDescription, atsScore, keywordsFound, keywordsMissing, optimizedText, hiringManagerObjections, redFlags, skillGraph]);
+  }, [extractedText, jobDescription, atsScore, keywordsFound, keywordsMissing, optimizedText, hiringManagerObjections, redFlags, skillGraph, optimizedCvId]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -133,6 +135,7 @@ export default function Dashboard() {
     setHiringManagerObjections([]);
     setRedFlags([]);
     setSkillGraph([]);
+    setOptimizedCvId(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -196,6 +199,11 @@ export default function Dashboard() {
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setStatusText("Session expired. Please log in.");
+        setLoading(false);
+        return;
+      }
       
       // Call analyze-cv
       const analyzeRes = await fetch(`${supabaseUrl}/functions/v1/analyze-cv`, {
@@ -242,9 +250,63 @@ export default function Dashboard() {
 
       if (optimizeData.success) {
         setOptimizedText(optimizeData.optimized_cv_text);
+        
+        setStatusText("Saving optimized CV...");
+        
+        // 1. Fetch latest cv_id for this user
+        const { data: latestCVs } = await supabase
+          .from("cvs")
+          .select("id")
+          .eq("user_id", session.user.id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        let cvId = latestCVs && latestCVs.length > 0 ? latestCVs[0].id : null;
+
+        // If no CV exists, insert a new CV first
+        if (!cvId) {
+          const { data: newCv, error: newCvError } = await supabase
+            .from("cvs")
+            .insert({
+              user_id: session.user.id,
+              extracted_text: extractedText,
+              ats_score: atsScore || 0
+            })
+            .select("id")
+            .single();
+          if (newCv) {
+            cvId = newCv.id;
+          } else {
+            console.error("Failed to create CV row:", newCvError);
+          }
+        }
+
+        if (cvId) {
+          // 2. Insert into optimized_cvs
+          const { data: optData, error: optError } = await supabase
+            .from("optimized_cvs")
+            .insert({
+              cv_id: cvId,
+              job_description: jobDescription,
+              optimized_text: optimizeData.optimized_cv_text,
+              suggestions: optimizeData.changes_made || []
+            })
+            .select("id")
+            .single();
+
+          if (optData) {
+            setOptimizedCvId(optData.id);
+            setStatusText("Complete!");
+          } else {
+            console.error("Failed to save optimized CV:", optError);
+            setStatusText("Failed to save optimized CV.");
+          }
+        } else {
+          setStatusText("Complete (not saved)!");
+        }
+      } else {
+        setStatusText("Complete!");
       }
-      
-      setStatusText("Complete!");
     } catch (err) {
       setStatusText("Error during analysis.");
       console.error(err);
@@ -345,18 +407,23 @@ export default function Dashboard() {
             </div>
 
             <div className="glass-card p-6">
-              <h2 className="font-outfit text-xl font-bold text-white mb-4">2. Job Description (Optional)</h2>
+              <h2 className="font-outfit text-xl font-bold text-white mb-4">2. Job Description (required)</h2>
               <textarea 
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
-                placeholder="Paste the target job description here for tailored ATS scoring..."
+                placeholder="Paste the target job description here for tailored ATS scoring (minimum 50 characters)..."
                 className="w-full h-32 bg-slate-950/50 border border-slate-700 rounded-xl p-4 text-white focus:outline-none focus:border-orange-500 text-sm resize-none"
               ></textarea>
+              {jobDescription.trim().length > 0 && jobDescription.trim().length < 50 && (
+                <p className="text-xs text-red-400 mt-2 font-medium animate-pulse">
+                  Job description must be at least 50 characters (current: {jobDescription.trim().length}/50)
+                </p>
+              )}
             </div>
 
             <button 
               onClick={handleAnalyze}
-              disabled={loading || !extractedText}
+              disabled={loading || !extractedText || jobDescription.trim().length < 50}
               className="w-full bg-white hover:bg-slate-200 text-slate-950 font-bold py-4 rounded-xl transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? "Processing..." : "Analyze & Optimize"}
@@ -457,28 +524,19 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Full Width: Optimized CV Preview */}
-        {optimizedText && (
-          <div className="mt-8 space-y-8">
-            <div className="glass-card p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="font-outfit text-xl font-bold text-white">Your Optimized CV</h2>
-                <button 
-                  onClick={downloadPDF}
-                  className="bg-orange-600 hover:bg-orange-500 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm shadow-md"
-                >
-                  Download PDF
-                </button>
-              </div>
-              
-              <div className="bg-slate-200 p-8 rounded-xl overflow-x-auto shadow-inner max-h-[800px] overflow-y-auto scroll-smooth" style={{ WebkitOverflowScrolling: 'touch' }}>
-                {/* White A4 paper look */}
-                <div id="cv-preview-container" className="bg-white mx-auto text-slate-900 p-10 font-serif" style={{maxWidth: '800px', minHeight: '1122px'}}>
-                  {renderFormattedCV(optimizedText)}
-                </div>
-              </div>
-            </div>
-            
+        {/* Open Preview in New Tab Section */}
+        {optimizedCvId && (
+          <div className="mt-8 text-center glass-card p-8 border border-emerald-500/20">
+            <h2 className="font-outfit text-2xl font-bold text-white mb-2">Optimized CV is Ready! 🎉</h2>
+            <p className="text-slate-400 mb-6">Your resume has been tailored to the job description. Open the preview to view, modify, or download it.</p>
+            <a 
+              href={`/preview/${optimizedCvId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-8 rounded-xl transition-all shadow-lg hover:-translate-y-0.5"
+            >
+              Open Preview
+            </a>
           </div>
         )}
       </div>

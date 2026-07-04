@@ -76,9 +76,6 @@ export default function Navbar() {
               <Link href="/cv-builder" className="text-sm font-medium text-amber-400 hover:text-amber-300 transition-colors">
                 CV Builder
               </Link>
-              <Link href="/portfolio-builder" className="text-sm font-medium text-emerald-400 hover:text-emerald-300 transition-colors">
-                Portfolio Builder
-              </Link>
             </>
           )}
         </div>

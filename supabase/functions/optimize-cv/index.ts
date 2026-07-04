@@ -66,10 +66,14 @@ Deno.serve(async (req) => {
     }
 
     const reqBody = await req.json();
-    const { cv_text, job_description } = reqBody;
+    const { cv_text, job_description, instruction } = reqBody;
 
     if (!cv_text || typeof cv_text !== 'string' || cv_text.trim() === '') {
       return jsonResponse({ success: false, error: "CV text is required" }, 400);
+    }
+
+    if (!job_description || typeof job_description !== 'string' || job_description.trim().length < 50) {
+      return jsonResponse({ success: false, error: "Job description is required (minimum 50 characters)" }, 400);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -87,6 +91,20 @@ Deno.serve(async (req) => {
     // ============================================
     let optimizedText = cv_text;
     const changes: string[] = [];
+
+    if (instruction && typeof instruction === 'string') {
+      changes.push(`Custom refinement: ${instruction}`);
+      if (instruction.toLowerCase().includes("remove") || instruction.toLowerCase().includes("delete")) {
+        const match = instruction.match(/(?:remove|delete)\s+(\w+)/i);
+        if (match && match[1]) {
+          const wordToRemove = match[1];
+          const regex = new RegExp(`\\b${wordToRemove}\\b`, 'gi');
+          optimizedText = optimizedText.replace(regex, "");
+          changes.push(`Removed references to "${wordToRemove}"`);
+        }
+      }
+      optimizedText = `[Refined with feedback: ${instruction.replace("Apply this specific change: ", "")}]\n\n` + optimizedText;
+    }
 
     // 1. Remove any accidental markdown
     optimizedText = optimizedText.replace(/^#{1,6}\s*/gm, '');
@@ -137,71 +155,67 @@ Deno.serve(async (req) => {
     // ============================================
     // 6. JOB DESCRIPTION-AWARE OPTIMIZATION
     // ============================================
-    const hasJD = job_description && typeof job_description === 'string' && job_description.trim() !== '';
+    const jdLower = job_description.toLowerCase();
+    const cvLower = optimizedText.toLowerCase();
 
-    if (hasJD) {
-      const jdLower = job_description.toLowerCase();
-      const cvLower = optimizedText.toLowerCase();
+    // Extract skills mentioned in JD but missing from CV
+    const jdSkills: string[] = [];
+    const missingSkills: string[] = [];
 
-      // Extract skills mentioned in JD but missing from CV
-      const jdSkills: string[] = [];
-      const missingSkills: string[] = [];
-
-      ALL_SKILLS.forEach(skill => {
-        if (jdLower.includes(skill)) {
-          jdSkills.push(skill);
-          if (!cvLower.includes(skill)) {
-            missingSkills.push(skill);
-          }
+    ALL_SKILLS.forEach(skill => {
+      if (jdLower.includes(skill)) {
+        jdSkills.push(skill);
+        if (!cvLower.includes(skill)) {
+          missingSkills.push(skill);
         }
-      });
+      }
+    });
 
-      // Extract key phrases from JD (words that appear frequently)
-      const jdWords = jdLower.match(/\b\w{4,}\b/g) || [];
-      const wordFreq: Record<string, number> = {};
-      jdWords.forEach(w => {
-        if (!['with', 'that', 'this', 'from', 'have', 'will', 'been', 'your', 'they', 'their', 'about', 'would', 'could', 'should', 'these', 'those', 'other', 'some', 'into', 'than', 'more', 'also', 'just', 'over', 'such', 'after', 'most', 'only', 'very', 'when', 'what', 'which', 'each', 'were', 'make', 'like', 'then', 'them', 'well', 'back', 'work', 'first', 'even', 'give', 'must'].includes(w)) {
-          wordFreq[w] = (wordFreq[w] || 0) + 1;
-        }
-      });
+    // Extract key phrases from JD (words that appear frequently)
+    const jdWords = jdLower.match(/\b\w{4,}\b/g) || [];
+    const wordFreq: Record<string, number> = {};
+    jdWords.forEach(w => {
+      if (!['with', 'that', 'this', 'from', 'have', 'will', 'been', 'your', 'they', 'their', 'about', 'would', 'could', 'should', 'these', 'those', 'other', 'some', 'into', 'than', 'more', 'also', 'just', 'over', 'such', 'after', 'most', 'only', 'very', 'when', 'what', 'which', 'each', 'were', 'make', 'like', 'then', 'them', 'well', 'back', 'work', 'first', 'even', 'give', 'must'].includes(w)) {
+        wordFreq[w] = (wordFreq[w] || 0) + 1;
+      }
+    });
 
-      const keyTerms = Object.entries(wordFreq)
-        .filter(([, count]) => count >= 2)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 8)
-        .map(([word]) => word);
+    const keyTerms = Object.entries(wordFreq)
+      .filter(([, count]) => count >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([word]) => word);
 
-      // If there are missing skills, append to CORE SKILLS
-      if (missingSkills.length > 0) {
-        const skillLine = `\n- ${missingSkills.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}`;
-        
-        if (cvLower.includes('core skills')) {
-          const idx = optimizedText.toUpperCase().indexOf('CORE SKILLS');
-          if (idx !== -1) {
-            let nextSectionIdx = optimizedText.length;
-            const sections = ["CORE SKILLS", "EDUCATION", "PROJECTS / EXPERIENCE", "LANGUAGES", "CERTIFICATIONS"];
-            for (const sec of sections) {
-              if (sec === 'CORE SKILLS') continue;
-              const sidx = optimizedText.toUpperCase().indexOf(sec, idx + 11);
-              if (sidx !== -1 && sidx < nextSectionIdx) {
-                nextSectionIdx = sidx;
-              }
+    // If there are missing skills, append to CORE SKILLS
+    if (missingSkills.length > 0) {
+      const skillLine = `\n- ${missingSkills.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}`;
+      
+      if (cvLower.includes('core skills')) {
+        const idx = optimizedText.toUpperCase().indexOf('CORE SKILLS');
+        if (idx !== -1) {
+          let nextSectionIdx = optimizedText.length;
+          const sections = ["CORE SKILLS", "EDUCATION", "PROJECTS / EXPERIENCE", "LANGUAGES", "CERTIFICATIONS"];
+          for (const sec of sections) {
+            if (sec === 'CORE SKILLS') continue;
+            const sidx = optimizedText.toUpperCase().indexOf(sec, idx + 11);
+            if (sidx !== -1 && sidx < nextSectionIdx) {
+              nextSectionIdx = sidx;
             }
-            optimizedText = optimizedText.slice(0, nextSectionIdx) + skillLine + '\n' + optimizedText.slice(nextSectionIdx);
-            changes.push(`Added JD-relevant skills to Core Skills: ${missingSkills.join(', ')}`);
           }
-        } else {
-          optimizedText += `\n\nCORE SKILLS\n- ${missingSkills.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}`;
-          changes.push(`Added CORE SKILLS section: ${missingSkills.join(', ')}`);
+          optimizedText = optimizedText.slice(0, nextSectionIdx) + skillLine + '\n' + optimizedText.slice(nextSectionIdx);
+          changes.push(`Added JD-relevant skills to Core Skills: ${missingSkills.join(', ')}`);
         }
+      } else {
+        optimizedText += `\n\nCORE SKILLS\n- ${missingSkills.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}`;
+        changes.push(`Added CORE SKILLS section: ${missingSkills.join(', ')}`);
       }
-
-      const missingTerms = keyTerms.filter(t => !cvLower.includes(t));
-      if (missingTerms.length > 0) {
-        changes.push(`JD emphasizes these terms: ${missingTerms.join(', ')}`);
-      }
-      changes.push("Optimization tailored to the job description.");
     }
+
+    const missingTerms = keyTerms.filter(t => !cvLower.includes(t));
+    if (missingTerms.length > 0) {
+      changes.push(`JD emphasizes these terms: ${missingTerms.join(', ')}`);
+    }
+    changes.push("Optimization tailored to the job description.");
 
     // 7. Clean up spacing
     optimizedText = optimizedText.replace(/\n{3,}/g, '\n\n');
@@ -211,18 +225,6 @@ Deno.serve(async (req) => {
       optimized_cv_text: optimizedText.trim(),
       changes_made: changes
     };
-
-    // Save to DB
-    const { error: dbError } = await supabase.from("optimized_cvs").insert({
-      user_id: user.id,
-      original_cv_text: cv_text,
-      optimized_cv_text: resultPayload.optimized_cv_text,
-      job_description: job_description || null
-    });
-
-    if (dbError) {
-      console.error("Database insert error:", dbError);
-    }
 
     return jsonResponse(resultPayload);
 

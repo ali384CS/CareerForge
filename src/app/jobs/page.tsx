@@ -162,7 +162,7 @@ export default function JobsPage() {
                 </h3>
                 <div className="flex flex-col items-end gap-1">
                   <span className="bg-orange-500/10 text-orange-400 text-xs font-bold px-2 py-1 rounded-lg border border-orange-500/20">
-                    {job.match_score ? `${job.match_score}% Match` : 'New'}
+                    {job.is_broader_match ? 'Broader Match' : job.match_score ? `${job.match_score}% Match` : 'New'}
                   </span>
                   {job.posted_hours_ago && (
                     <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
