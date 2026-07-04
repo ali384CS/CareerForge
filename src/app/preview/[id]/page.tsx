@@ -70,7 +70,7 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
         body: JSON.stringify({
           cv_text: originalText || cvText,
           job_description: jobDescription,
-          instruction: `Apply this specific change: ${feedback}`
+          instruction: `Address this feedback from the user: ${feedback}`
         })
       });
       
@@ -106,6 +106,23 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
   const handleDownloadPDF = async () => {
     setStatus("Exporting PDF...");
     await exportPDF('Optimized_CV.pdf', cvText, setStatus);
+  };
+
+  const handleOpenPDF = async () => {
+    setStatus("Generating PDF for preview...");
+    try {
+      const blob = await exportPDF('Optimized_CV.pdf', cvText, setStatus, true);
+      if (blob) {
+        const url = URL.createObjectURL(blob as Blob);
+        window.open(url);
+        setStatus("PDF opened in new tab.");
+      } else {
+        setStatus("Failed to generate PDF blob.");
+      }
+    } catch (e) {
+      console.error(e);
+      setStatus("Error opening PDF preview.");
+    }
   };
 
   const handleDone = () => {
@@ -162,9 +179,16 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
 
           <button
             onClick={handleDownloadPDF}
-            className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl border border-slate-700 transition-colors"
+            className="bg-slate-850 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2.5 rounded-xl border border-slate-700 transition-colors"
           >
             Download PDF
+          </button>
+
+          <button
+            onClick={handleOpenPDF}
+            className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl border border-slate-700 transition-colors"
+          >
+            Open PDF
           </button>
 
           <button

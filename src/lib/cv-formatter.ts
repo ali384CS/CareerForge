@@ -220,7 +220,7 @@ export function renderFormattedCV(rawText: string): React.ReactElement[] | null 
 /**
  * exportPDF - Generates and downloads a PDF of the CV matching the on-screen layout exactly
  */
-export async function exportPDF(fileName: string, rawText: string, setStatusText?: (txt: string) => void) {
+export async function exportPDF(fileName: string, rawText: string, setStatusText?: (txt: string) => void, returnBlob = false): Promise<Blob | void> {
   if (setStatusText) setStatusText("Generating PDF...");
   try {
     const { jsPDF } = await import('jspdf');
@@ -371,8 +371,13 @@ export async function exportPDF(fileName: string, rawText: string, setStatusText
       }
     }
 
-    doc.save(fileName);
-    if (setStatusText) setStatusText("PDF downloaded!");
+    if (returnBlob) {
+      if (setStatusText) setStatusText("PDF generated!");
+      return doc.output('blob');
+    } else {
+      doc.save(fileName);
+      if (setStatusText) setStatusText("PDF downloaded!");
+    }
   } catch (err) {
     console.error("PDF generation failed:", err);
     if (setStatusText) setStatusText("Failed to generate PDF.");

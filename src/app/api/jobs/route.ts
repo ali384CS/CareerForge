@@ -141,7 +141,10 @@ export async function POST(req: Request) {
       // Score components: Base (10) + Title Match (max 40) + Skills Match (max 50)
       const score = Math.min(99, Math.max(40, 10 + titleMatchScore + skillMatchScore));
 
-      // Label low confidence as broader matches (e.g. score < 60)
+      // Discard near-zero overlap (e.g. no title match AND less than 2 skills match, or score < 45)
+      const isNearZero = (titleMatchScore === 0 && skillMatchCount < 2) || score < 45;
+
+      // Label low confidence as broader matches (e.g. score < 65)
       const isBroaderMatch = score < 65;
 
       const cleanSnippet = (job.job_description || "")
@@ -158,18 +161,21 @@ export async function POST(req: Request) {
         match_score: score,
         snippet: cleanSnippet,
         is_broader_match: isBroaderMatch,
+        is_near_zero: isNearZero,
         posted_hours_ago: Math.floor(Math.random() * 24) + 1
       };
     });
 
-    // Remove duplicates by job title + company
+    // Remove duplicates and filter near-zero overlaps
     const uniqueJobsMap = new Map();
-    scoredJobs.forEach(job => {
-      const key = `${job.job_title}-${job.company}`.toLowerCase();
-      if (!uniqueJobsMap.has(key) || uniqueJobsMap.get(key).match_score < job.match_score) {
-        uniqueJobsMap.set(key, job);
-      }
-    });
+    scoredJobs
+      .filter(job => !job.is_near_zero)
+      .forEach(job => {
+        const key = `${job.job_title}-${job.company}`.toLowerCase();
+        if (!uniqueJobsMap.has(key) || uniqueJobsMap.get(key).match_score < job.match_score) {
+          uniqueJobsMap.set(key, job);
+        }
+      });
 
     const uniqueScoredJobs = Array.from(uniqueJobsMap.values());
 

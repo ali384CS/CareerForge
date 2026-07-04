@@ -76,6 +76,9 @@ export default function Navbar() {
               <Link href="/cv-builder" className="text-sm font-medium text-amber-400 hover:text-amber-300 transition-colors">
                 CV Builder
               </Link>
+              <Link href="/ats-score" className="text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors">
+                Check ATS Score
+              </Link>
             </>
           )}
         </div>

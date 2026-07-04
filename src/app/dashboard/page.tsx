@@ -5,9 +5,6 @@ import { useRouter } from "next/navigation";
 import Script from "next/script";
 import { supabase } from "@/lib/supabase";
 import { formatCVText, renderFormattedCV, exportPDF } from "@/lib/cv-formatter";
-import NegotiationSimulator from "@/components/NegotiationSimulator";
-import InterviewPredictor from "@/components/InterviewPredictor";
-
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 
 // ============================================
@@ -33,9 +30,6 @@ export default function Dashboard() {
   const [keywordsFound, setKeywordsFound] = useState<string[]>([]);
   const [keywordsMissing, setKeywordsMissing] = useState<string[]>([]);
   const [optimizedText, setOptimizedText] = useState("");
-  const [hiringManagerObjections, setHiringManagerObjections] = useState<string[]>([]);
-  const [redFlags, setRedFlags] = useState<any[]>([]);
-  const [skillGraph, setSkillGraph] = useState<any[]>([]);
   const [optimizedCvId, setOptimizedCvId] = useState<string | null>(null);
   
   // Restore cached results from sessionStorage on mount
@@ -50,9 +44,6 @@ export default function Dashboard() {
         if (data.keywordsFound) setKeywordsFound(data.keywordsFound);
         if (data.keywordsMissing) setKeywordsMissing(data.keywordsMissing);
         if (data.optimizedText) setOptimizedText(data.optimizedText);
-        if (data.hiringManagerObjections) setHiringManagerObjections(data.hiringManagerObjections);
-        if (data.redFlags) setRedFlags(data.redFlags);
-        if (data.skillGraph) setSkillGraph(data.skillGraph);
         if (data.optimizedCvId) setOptimizedCvId(data.optimizedCvId);
       }
     } catch {}
@@ -64,11 +55,11 @@ export default function Dashboard() {
       try {
         sessionStorage.setItem("dashboard_results", JSON.stringify({
           extractedText, jobDescription, atsScore, keywordsFound, keywordsMissing, optimizedText,
-          hiringManagerObjections, redFlags, skillGraph, optimizedCvId
+          optimizedCvId
         }));
       } catch {}
     }
-  }, [extractedText, jobDescription, atsScore, keywordsFound, keywordsMissing, optimizedText, hiringManagerObjections, redFlags, skillGraph, optimizedCvId]);
+  }, [extractedText, jobDescription, atsScore, keywordsFound, keywordsMissing, optimizedText, optimizedCvId]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -132,9 +123,6 @@ export default function Dashboard() {
     setKeywordsFound([]);
     setKeywordsMissing([]);
     setOptimizedText("");
-    setHiringManagerObjections([]);
-    setRedFlags([]);
-    setSkillGraph([]);
     setOptimizedCvId(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -205,33 +193,6 @@ export default function Dashboard() {
         return;
       }
       
-      // Call analyze-cv
-      const analyzeRes = await fetch(`${supabaseUrl}/functions/v1/analyze-cv`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({
-          cv_text: extractedText,
-          job_description: jobDescription
-        })
-      });
-      const analyzeData = await analyzeRes.json();
-      
-      // Defensively check all response shapes
-      const payload = analyzeData.data || analyzeData;
-      const extractedScore = payload.ats_score ?? payload.score;
-      
-      if (extractedScore !== undefined && extractedScore !== null) {
-        setAtsScore(extractedScore);
-        setKeywordsFound(payload.keywords_found || []);
-        setKeywordsMissing(payload.keywords_missing || []);
-        setHiringManagerObjections(payload.hiring_manager_objections || []);
-        setRedFlags(payload.red_flags || []);
-        setSkillGraph(payload.skill_graph || []);
-      }
-
       setStatusText("Optimizing CV formatting...");
 
       // Call optimize-cv
@@ -346,180 +307,98 @@ export default function Dashboard() {
     <>
       <Script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" strategy="afterInteractive" />
       <Script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js" strategy="afterInteractive" />
-      <div className="container mx-auto px-4 py-8 max-w-5xl">
-        <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4 mb-8">
-          <div>
-            <h1 className="font-outfit text-3xl font-bold text-white mb-2">Dashboard</h1>
-            <p className="text-slate-400">Upload your CV and let the AI do the heavy lifting.</p>
-          </div>
-          
-          {(optimizedText || extractedText) && (
-            <button 
-              onClick={() => {
-                localStorage.setItem('cv_for_jobs', optimizedText || extractedText);
-                router.push('/jobs');
-              }}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-6 py-3 rounded-xl transition-all shadow-lg hover:-translate-y-0.5"
-            >
-              Find Matching Jobs
-            </button>
-          )}
+      <div className="container mx-auto px-4 py-8 max-w-3xl pb-24 md:pb-8">
+        <div className="mb-10 text-center">
+          <h1 className="font-outfit text-4xl font-bold text-white mb-2">Optimize CV</h1>
+          <p className="text-slate-400">Tailor your resume formatting and content to a target job description.</p>
         </div>
-        
-        <div className="grid md:grid-cols-2 gap-8">
+
+        <div className="space-y-8">
           
-          {/* Left Column: Input */}
-          <div className="space-y-6">
-            <div className="glass-card p-6">
-              <h2 className="font-outfit text-xl font-bold text-white mb-4">1. Upload CV</h2>
-              
-              {file ? (
-                /* File selected state — show file info + cancel button */
-                <div className="flex items-center justify-between bg-slate-950/50 border border-slate-700 rounded-xl px-4 py-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex-shrink-0 w-8 h-8 bg-orange-500/10 border border-orange-500/20 rounded-lg flex items-center justify-center">
-                      <span className="text-orange-400 text-xs font-bold">{file.name.split('.').pop()?.toUpperCase()}</span>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm text-white font-medium truncate">{file.name}</p>
-                      <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
-                    </div>
+          {/* Card 1: Upload */}
+          <div className="glass-card p-6 border border-slate-800">
+            <h2 className="font-outfit text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <span className="text-orange-500">1.</span> Upload CV
+            </h2>
+            
+            {file ? (
+              <div className="flex items-center justify-between bg-slate-950/50 border border-slate-700 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex-shrink-0 w-8 h-8 bg-orange-500/10 border border-orange-500/20 rounded-lg flex items-center justify-center">
+                    <span className="text-orange-400 text-xs font-bold">{file.name.split('.').pop()?.toUpperCase()}</span>
                   </div>
-                  <button
-                    onClick={handleClearFile}
-                    className="flex-shrink-0 ml-3 w-8 h-8 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center hover:bg-red-500/20 transition-colors"
-                    title="Remove file"
-                  >
-                    <span className="text-red-400 text-sm font-bold">✕</span>
-                  </button>
+                  <div className="min-w-0">
+                    <p className="text-sm text-white font-medium truncate">{file.name}</p>
+                    <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
+                  </div>
                 </div>
-              ) : (
-                /* No file selected — show upload input */
-                <input 
-                  ref={fileInputRef}
-                  type="file" 
-                  accept=".pdf,.docx"
-                  onChange={handleFileChange}
-                  className="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-orange-600 file:text-white hover:file:bg-orange-500 cursor-pointer"
-                />
-              )}
-              {statusText && <p className="text-xs text-orange-400 mt-3">{statusText}</p>}
-            </div>
+                <button
+                  onClick={handleClearFile}
+                  className="flex-shrink-0 ml-3 w-8 h-8 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center hover:bg-red-500/20 transition-colors"
+                  title="Remove file"
+                >
+                  <span className="text-red-400 text-sm font-bold">✕</span>
+                </button>
+              </div>
+            ) : (
+              <input 
+                ref={fileInputRef}
+                type="file" 
+                accept=".pdf,.docx"
+                onChange={handleFileChange}
+                className="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-orange-600 file:text-white hover:file:bg-orange-500 cursor-pointer"
+              />
+            )}
+            {statusText && <p className="text-xs text-orange-400 mt-3">{statusText}</p>}
+          </div>
 
-            <div className="glass-card p-6">
-              <h2 className="font-outfit text-xl font-bold text-white mb-4">2. Job Description (required)</h2>
-              <textarea 
-                value={jobDescription}
-                onChange={(e) => setJobDescription(e.target.value)}
-                placeholder="Paste the target job description here for tailored ATS scoring (minimum 50 characters)..."
-                className="w-full h-32 bg-slate-950/50 border border-slate-700 rounded-xl p-4 text-white focus:outline-none focus:border-orange-500 text-sm resize-none"
-              ></textarea>
-              {jobDescription.trim().length > 0 && jobDescription.trim().length < 50 && (
-                <p className="text-xs text-red-400 mt-2 font-medium animate-pulse">
-                  Job description must be at least 50 characters (current: {jobDescription.trim().length}/50)
-                </p>
-              )}
-            </div>
+          {/* Card 2: Job Description */}
+          <div className="glass-card p-6 border border-slate-800">
+            <h2 className="font-outfit text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <span className="text-orange-500">2.</span> Job Description (required)
+            </h2>
+            <textarea 
+              value={jobDescription}
+              onChange={(e) => setJobDescription(e.target.value)}
+              placeholder="Paste the target job description here for tailored optimization (minimum 50 characters)..."
+              className="w-full h-40 bg-slate-950/50 border border-slate-800 rounded-xl p-4 text-white focus:outline-none focus:border-orange-500 text-sm resize-none"
+            ></textarea>
+            {jobDescription.trim().length > 0 && jobDescription.trim().length < 50 && (
+              <p className="text-xs text-red-400 mt-2 font-medium animate-pulse">
+                Job description must be at least 50 characters (current: {jobDescription.trim().length}/50)
+              </p>
+            )}
+          </div>
 
+          {/* Responsive action button - Sticky on mobile */}
+          <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-950/80 backdrop-blur-md border-t border-slate-800 z-50 md:static md:p-0 md:bg-transparent md:border-0 md:mt-6">
             <button 
               onClick={handleAnalyze}
               disabled={loading || !extractedText || jobDescription.trim().length < 50}
-              className="w-full bg-white hover:bg-slate-200 text-slate-950 font-bold py-4 rounded-xl transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-white hover:bg-slate-200 text-slate-950 font-bold py-4 rounded-xl transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-xl"
             >
-              {loading ? "Processing..." : "Analyze & Optimize"}
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-spin h-5 w-5 border-2 border-slate-950 border-t-transparent rounded-full"></span>
+                  Optimizing CV...
+                </span>
+              ) : "Optimize CV"}
             </button>
           </div>
 
-          {/* Right Column: Output */}
-          <div className="space-y-6">
-            {atsScore !== null && (
-              <div className="glass-card p-6">
-                <h2 className="font-outfit text-xl font-bold text-white mb-4">ATS Score</h2>
-                <div className="flex items-center gap-4 mb-4">
-                  <div className={`text-5xl font-outfit font-bold ${atsScore >= 80 ? 'text-emerald-400' : atsScore >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
-                    {atsScore}%
-                  </div>
-                  <div className="text-sm text-slate-400 uppercase tracking-wide">Match Rate</div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Keywords Found</h4>
-                    <div className="flex flex-wrap gap-1">
-                      {keywordsFound.map(k => <span key={k} className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded-md">{k}</span>)}
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Keywords Missing</h4>
-                    <div className="flex flex-wrap gap-1">
-                      {keywordsMissing.map(k => <span key={k} className="text-xs bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-1 rounded-md">{k}</span>)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {hiringManagerObjections.length > 0 && (
-              <div className="glass-card p-6 border-orange-500/30 border">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="h-8 w-8 bg-orange-500/20 rounded-full flex items-center justify-center">
-                    <span className="text-orange-400 text-lg">🧐</span>
-                  </div>
-                  <h2 className="font-outfit text-xl font-bold text-white">Hiring Manager's Take</h2>
-                </div>
-                <ul className="space-y-3">
-                  {hiringManagerObjections.map((obj, i) => (
-                    <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
-                      <span className="text-orange-400 mt-0.5">•</span>
-                      <span>{obj}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {redFlags.length > 0 && (
-              <div className="glass-card p-6">
-                <h2 className="font-outfit text-xl font-bold text-white mb-4">Red Flags & Explainers</h2>
-                <div className="space-y-4">
-                  {redFlags.map((flag, i) => (
-                    <div key={i} className="bg-slate-950/50 p-4 rounded-xl border border-slate-700">
-                      <h4 className="text-red-400 font-bold text-sm mb-1">{flag.issue}</h4>
-                      <p className="text-slate-400 text-xs italic">"How to explain this in an interview:"</p>
-                      <p className="text-white text-sm mt-1">"{flag.explanation}"</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {skillGraph.length > 0 && (
-              <div className="glass-card p-6">
-                <h2 className="font-outfit text-xl font-bold text-white mb-4">Skill Graph & Upskilling</h2>
-                <p className="text-sm text-slate-400 mb-4">You are missing these skills for the role. Here's how to close the gap:</p>
-                <div className="space-y-3">
-                  {skillGraph.map((sg, i) => (
-                    <div key={i} className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
-                      <span className="text-sm font-bold text-slate-200">{sg.skill}</span>
-                      <div className="text-right">
-                        <a href="#" className="text-xs text-blue-400 hover:underline block">{sg.course_suggestion}</a>
-                        <span className="text-[10px] text-slate-500">Est. {sg.time_to_close}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Next-Gen Tools Section */}
-        {(atsScore !== null) && (
-          <div className="mt-8">
-            <h2 className="font-outfit text-2xl font-bold text-white mb-6">Next-Gen Preparation Tools</h2>
-            <div className="grid md:grid-cols-2 gap-8">
-              <InterviewPredictor />
-              <NegotiationSimulator />
+        {/* Loading Skeletons */}
+        {loading && (
+          <div className="mt-8 space-y-6">
+            <div className="glass-card p-6 space-y-4 animate-pulse border border-slate-850">
+              <div className="h-6 bg-slate-900 rounded w-1/4"></div>
+              <div className="h-4 bg-slate-900 rounded w-3/4"></div>
+              <div className="space-y-2 pt-4">
+                <div className="h-4 bg-slate-900 rounded"></div>
+                <div className="h-4 bg-slate-900 rounded"></div>
+                <div className="h-4 bg-slate-900 rounded w-5/6"></div>
+              </div>
             </div>
           </div>
         )}

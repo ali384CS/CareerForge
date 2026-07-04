@@ -24,10 +24,10 @@ export default function Home() {
         
         <div className="pt-8">
           <Link 
-            href="/auth" 
+            href="/dashboard" 
             className="inline-block font-semibold bg-white text-slate-950 px-8 py-4 rounded-full text-lg hover:bg-slate-200 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
           >
-            Analyze My CV Now
+            Go to Dashboard
           </Link>
         </div>
       </section>
