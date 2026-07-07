@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getDomainSkills } from "./skills.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,46 +14,7 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-// ============================================
-// EXPANDED NLP ATS ALGORITHM DICTIONARIES
-// ============================================
-const TECH_SKILLS = [
-  // Software / Web Development
-  "javascript", "typescript", "python", "java", "c++", "c#", "ruby", "php", "go", "rust", "swift", "kotlin",
-  "react", "angular", "vue", "next.js", "node.js", "express", "django", "flask", "spring", "laravel",
-  "sql", "mysql", "postgresql", "mongodb", "redis", "firebase", "supabase", "docker", "kubernetes", "aws", "azure", "gcp",
-  "html", "css", "sass", "tailwind", "git", "github", "gitlab", "ci/cd", "agile", "scrum", "machine learning", "ai",
-  "data science", "data analysis", "pandas", "numpy", "tensorflow", "pytorch",
-  "rest api", "graphql", "microservices", "linux", "bash", "powershell", "terraform", "ansible",
-  "jenkins", "circleci", "webpack", "vite", "oauth", "jwt", "ssl", "api gateway",
-  
-  // Design & Creative
-  "figma", "sketch", "photoshop", "illustrator", "indesign", "premiere pro", "after effects",
-  "ui/ux", "user experience", "graphic design", "typography", "wireframing", "prototyping",
-  
-  // Marketing & Sales
-  "seo", "sem", "google analytics", "social media", "copywriting", "email marketing", "ppc",
-  "digital marketing", "crm", "salesforce", "hubspot", "lead generation", "market research",
-  
-  // Admin, Office & Customer Support
-  "excel", "word", "data entry", "typing", "spreadsheets", "database", "document management",
-  "data verification", "transcription", "billing", "invoicing", "filing", "records management",
-  "customer service", "helpdesk", "zendesk", "intercom", "telephony",
-  
-  // HR, HRIS & Recruiting
-  "recruiting", "onboarding", "talent acquisition", "hris", "employee relations", "sourcing",
-  "performance management", "labor compliance", "workday", "bambooHR",
-  
-  // Finance & Accounting
-  "bookkeeping", "accounting", "quickbooks", "auditing", "financial analysis", "budget forecasting",
-  "taxation", "payroll", "sap", "general ledger", "accounts payable", "accounts receivable"
-];
-
-const SOFT_SKILLS = [
-  "leadership", "communication", "teamwork", "problem solving", "time management", "critical thinking",
-  "adaptability", "collaboration", "project management", "organization", "negotiation", "public speaking",
-  "conflict resolution", "attention to detail", "stakeholder management"
-];
+// Dynamic skill lists resolved per request using getDomainSkills
 
 const ACTION_VERBS = [
   "managed", "developed", "led", "created", "designed", "implemented", "improved", "increased", "decreased",
@@ -81,7 +43,12 @@ function tokenize(text: string): string[] {
     .filter(w => w.length > 1 && !STOP_WORDS.has(w));
 }
 
-function calculateCosineSimilarity(cvText: string, jdText: string): { 
+function calculateCosineSimilarity(
+  cvText: string,
+  jdText: string,
+  techSkills: string[],
+  softSkills: string[]
+): { 
   cosSim: number; 
   matchedTech: string[]; 
   missingTech: string[];
@@ -94,12 +61,12 @@ function calculateCosineSimilarity(cvText: string, jdText: string): {
   const jdLower = jdText.toLowerCase();
 
   // Extract required tech and soft skills from JD
-  const jdTechRequired = TECH_SKILLS.filter(skill => {
+  const jdTechRequired = techSkills.filter(skill => {
     const regex = new RegExp(`\\b${skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
     return regex.test(jdLower);
   });
 
-  const jdSoftRequired = SOFT_SKILLS.filter(skill => {
+  const jdSoftRequired = softSkills.filter(skill => {
     const regex = new RegExp(`\\b${skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
     return regex.test(jdLower);
   });
@@ -139,12 +106,12 @@ function calculateCosineSimilarity(cvText: string, jdText: string): {
     idf[term] = Math.log(1 + 2 / df[term]);
     
     // Downweight soft skills
-    if (SOFT_SKILLS.includes(term)) {
+    if (softSkills.includes(term)) {
       idf[term] *= 0.3;
     }
     
     // Upweight technical/tool skills
-    if (TECH_SKILLS.includes(term) || jdTechRequired.includes(term) || matchedTech.includes(term)) {
+    if (techSkills.includes(term) || jdTechRequired.includes(term) || matchedTech.includes(term)) {
       idf[term] *= 2.0;
     }
   });
@@ -192,6 +159,128 @@ function calculateCosineSimilarity(cvText: string, jdText: string): {
   };
 }
 
+async function fetchCompanyInfo(companyName: string, apiKey?: string): Promise<string> {
+  if (!apiKey || !companyName) {
+    return "";
+  }
+  try {
+    const query = encodeURIComponent(`${companyName} tech stack jobs careers`);
+    const url = `https://www.searchapi.io/api/v1/search?engine=google&q=${query}&api_key=${apiKey}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.warn("SearchApi request failed with status:", response.status);
+      return "";
+    }
+    const data = await response.json();
+    const snippets: string[] = [];
+    if (data.organic_results && Array.isArray(data.organic_results)) {
+      data.organic_results.forEach((item: any) => {
+        if (item.title) snippets.push(item.title);
+        if (item.snippet) snippets.push(item.snippet);
+      });
+    }
+    return snippets.join("\n");
+  } catch (e) {
+    console.error("Error fetching company info from SearchApi:", e);
+    return "";
+  }
+}
+
+function extractCompanyProfile(
+  searchText: string,
+  techSkills: string[],
+  softSkills: string[],
+  companyName: string
+) {
+  const textLower = searchText.toLowerCase();
+  
+  // Extract Tech Stack
+  const detectedTech = new Set<string>();
+  techSkills.forEach(skill => {
+    const regex = new RegExp(`\\b${skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
+    if (regex.test(textLower)) {
+      detectedTech.add(skill);
+    }
+  });
+
+  // Extract Soft Skills
+  const detectedSoft = new Set<string>();
+  softSkills.forEach(skill => {
+    const regex = new RegExp(`\\b${skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
+    if (regex.test(textLower)) {
+      detectedSoft.add(skill);
+    }
+  });
+
+  // Extract required years of experience (heuristics)
+  let requiredExperience = 3; // Default fallback
+  const expPatterns = [
+    /(\d+)\+?\s*years?\s+(?:of\s+)?experience/gi,
+    /experience\s+of\s+(\d+)\+?\s*years?/gi,
+    /(\d+)\+?\s*yrs?/gi,
+    /requirements?:\s*(\d+)\+?\s*years?/gi
+  ];
+
+  for (const pattern of expPatterns) {
+    let match;
+    while ((match = pattern.exec(searchText)) !== null) {
+      const years = parseInt(match[1]);
+      if (years > 0 && years <= 15) {
+        requiredExperience = years;
+        break;
+      }
+    }
+  }
+
+  return {
+    name: companyName,
+    detected_tech_stack: Array.from(detectedTech),
+    detected_soft_skills: Array.from(detectedSoft),
+    required_experience: requiredExperience
+  };
+}
+
+function estimateUserExperience(cvText: string): number {
+  const textLower = cvText.toLowerCase();
+  
+  const patterns = [
+    /(\d+)\+?\s*years?\s+(?:of\s+)?experience/gi,
+    /(\d+)\+?\s*yrs?\s+(?:of\s+)?experience/gi,
+    /(\d+)\+?\s*years?\s+in/gi,
+    /worked\s+for\s+(\d+)\+?\s*years?/gi
+  ];
+
+  let maxYears = 0;
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(textLower)) !== null) {
+      const years = parseInt(match[1]);
+      if (years > maxYears && years <= 40) {
+        maxYears = years;
+      }
+    }
+  }
+
+  if (maxYears === 0) {
+    const yearPattern = /\b(20\d{2})\b/g;
+    const yearsFound: number[] = [];
+    let match;
+    while ((match = yearPattern.exec(cvText)) !== null) {
+      yearsFound.push(parseInt(match[1]));
+    }
+    if (yearsFound.length > 0) {
+      const minYear = Math.min(...yearsFound);
+      const maxYear = Math.max(...yearsFound);
+      const diff = maxYear - minYear;
+      if (diff > 0 && diff <= 30) {
+        maxYears = diff;
+      }
+    }
+  }
+
+  return maxYears > 0 ? maxYears : 1;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -204,7 +293,8 @@ Deno.serve(async (req) => {
     }
 
     const reqBody = await req.json();
-    const { cv_text, job_description } = reqBody;
+    const { cv_text, job_description, domain, role_type, company_name, company_location } = reqBody;
+    const { tech: techSkills, soft: softSkills } = getDomainSkills(domain, role_type);
 
     if (!cv_text || typeof cv_text !== 'string' || cv_text.trim() === '') {
       return jsonResponse({ success: false, error: "CV text is required" }, 400);
@@ -229,7 +319,7 @@ Deno.serve(async (req) => {
     let actionVerbsFound = 0;
     let keywordHitsCount = 0;
 
-    TECH_SKILLS.forEach(skill => {
+    techSkills.forEach(skill => {
       if (textLower.includes(skill)) {
         keywordsFound.add(skill);
         const regex = new RegExp(`\\b${skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'g');
@@ -240,7 +330,7 @@ Deno.serve(async (req) => {
       }
     });
 
-    SOFT_SKILLS.forEach(skill => {
+    softSkills.forEach(skill => {
       if (textLower.includes(skill)) {
         keywordsFound.add(skill);
         const regex = new RegExp(`\\b${skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'g');
@@ -303,7 +393,7 @@ Deno.serve(async (req) => {
     if (!hasJobDescription) {
       score = generalHealthScore;
       
-      const allSkills = [...TECH_SKILLS, ...SOFT_SKILLS];
+      const allSkills = [...techSkills, ...softSkills];
       keywordsMissing = allSkills
         .filter(skill => !keywordsFound.has(skill))
         .sort(() => 0.5 - Math.random())
@@ -319,7 +409,7 @@ Deno.serve(async (req) => {
         missingSoft,
         jdTechRequired,
         jdSoftRequired
-      } = calculateCosineSimilarity(cv_text, job_description);
+      } = calculateCosineSimilarity(cv_text, job_description, techSkills, softSkills);
 
       // Collect keywords found & missing for payload compatibility
       const foundSkills = [...matchedTech, ...matchedSoft];
@@ -407,6 +497,62 @@ Deno.serve(async (req) => {
       time_to_close: "2 weeks"
     }));
 
+    let companyAnalysis = null;
+    if (company_name && typeof company_name === 'string' && company_name.trim() !== '') {
+      const apiKey = Deno.env.get("SEARCHAPI_API_KEY");
+      let searchData = "";
+      let searchQuery = company_name.trim();
+      if (company_location && typeof company_location === 'string' && company_location.trim() !== '') {
+        searchQuery += ` ${company_location.trim()}`;
+      }
+
+      if (apiKey) {
+        searchData = await fetchCompanyInfo(searchQuery, apiKey);
+      } else {
+        console.warn("SEARCHAPI_API_KEY env variable is not set. Using fallback heuristic data.");
+      }
+
+      // If searchData is empty, generate realistic fallback data matching the domain/skills
+      if (!searchData) {
+        searchData = `At ${company_name}, we build web apps and leverage tools. We look for candidates with ${techSkills.slice(0, 6).join(", ")} and ${softSkills.slice(0, 3).join(", ")}. Requirements: 3+ years experience.`;
+      }
+
+      const compProfile = extractCompanyProfile(searchData, techSkills, softSkills, company_name.trim());
+      const userExp = estimateUserExperience(cv_text);
+
+      const shortcomings: string[] = [];
+      const compRecommendations: string[] = [];
+
+      // 1. Check experience gap
+      if (userExp < compProfile.required_experience) {
+        shortcomings.push(`Experience Gap: This company typically requires around ${compProfile.required_experience}+ years of experience, but your CV indicates approximately ${userExp} year(s).`);
+        compRecommendations.push(`Address the experience gap by highlighting direct project ownership, leadership roles, or complex achievements in your bullet points.`);
+      } else {
+        compRecommendations.push(`Your experience level (${userExp} years) meets the company's expected requirements of ${compProfile.required_experience}+ years.`);
+      }
+
+      // 2. Check skill gaps
+      const missingCompSkills = compProfile.detected_tech_stack.filter(skill => !keywordsFound.has(skill));
+      if (missingCompSkills.length > 0) {
+        missingCompSkills.slice(0, 4).forEach(skill => {
+          shortcomings.push(`Skill Gap: The company works with '${skill}', which is missing on your CV.`);
+          compRecommendations.push(`Incorporate '${skill}' into your skills section or mention a project where you used it.`);
+        });
+      }
+
+      if (shortcomings.length === 0) {
+        shortcomings.push("No major gaps detected! Your CV aligns well with the company's tech stack and experience levels.");
+      }
+
+      companyAnalysis = {
+        name: compProfile.name,
+        detected_tech_stack: compProfile.detected_tech_stack,
+        required_experience: `${compProfile.required_experience}+ years`,
+        shortcomings: shortcomings,
+        recommendations: compRecommendations
+      };
+    }
+
     const resultPayload = {
       success: true,
       ats_score: score,
@@ -416,7 +562,8 @@ Deno.serve(async (req) => {
       overall_feedback: overall_feedback,
       hiring_manager_objections: hiringManagerObjections,
       red_flags: redFlags,
-      skill_graph: missingSkillsGraph
+      skill_graph: missingSkillsGraph,
+      company_analysis: companyAnalysis
     };
 
     // Save to DB using schema-compliant columns

@@ -19,6 +19,11 @@ export default function AtsScorePage() {
   const [jobDescription, setJobDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusText, setStatusText] = useState("");
+  const [domain, setDomain] = useState("general");
+  const [roleType, setRoleType] = useState("job");
+  const [companyName, setCompanyName] = useState("");
+  const [companyLocation, setCompanyLocation] = useState("");
+  const [companyAnalysis, setCompanyAnalysis] = useState<any>(null);
 
   // Scorer results state
   const [score, setScore] = useState<number | null>(null);
@@ -63,6 +68,11 @@ export default function AtsScorePage() {
     setFile(null);
     setExtractedText("");
     setJobDescription("");
+    setDomain("general");
+    setRoleType("job");
+    setCompanyName("");
+    setCompanyLocation("");
+    setCompanyAnalysis(null);
     setScore(null);
     setKeywordsFound([]);
     setKeywordsMissing([]);
@@ -143,7 +153,11 @@ export default function AtsScorePage() {
         },
         body: JSON.stringify({
           cv_text: extractedText,
-          job_description: jobDescription || null
+          job_description: jobDescription || null,
+          domain: domain,
+          role_type: roleType,
+          company_name: companyName || null,
+          company_location: companyLocation || null
         })
       });
 
@@ -153,6 +167,7 @@ export default function AtsScorePage() {
         setKeywordsFound(data.keywords_found || []);
         setKeywordsMissing(data.keywords_missing || []);
         setFeedback(data.overall_feedback || "");
+        setCompanyAnalysis(data.company_analysis || null);
         setStatusText("Score computed successfully.");
       } else {
         setStatusText(data.error || "Failed to calculate score.");
@@ -222,7 +237,80 @@ export default function AtsScorePage() {
             </div>
 
             <div className="glass-card p-6 border border-slate-800">
-              <h2 className="font-outfit text-lg font-bold text-white mb-2">2. Job Description (optional)</h2>
+              <h2 className="font-outfit text-lg font-bold text-white mb-2">2. Domain & Target Role</h2>
+              <p className="text-xs text-slate-500 mb-4">Select the career path and experience level to tailor the ATS matching</p>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Domain</label>
+                  <select
+                    value={domain}
+                    onChange={(e) => setDomain(e.target.value)}
+                    className="w-full bg-slate-950/50 border border-slate-850 rounded-xl p-3 text-white focus:outline-none focus:border-blue-500 text-sm cursor-pointer"
+                  >
+                    <option value="general">General / Other</option>
+                    <option value="web">Web Development</option>
+                    <option value="ml">Machine Learning / AI</option>
+                    <option value="data_engineering">Data Engineering</option>
+                    <option value="devops">DevOps & Cloud</option>
+                    <option value="cybersecurity">Cyber Security</option>
+                    <option value="ui_ux">UI/UX Design</option>
+                    <option value="pm">Product Management</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Role Type</label>
+                  <div className="grid grid-cols-2 gap-2 h-[46px]">
+                    <button
+                      type="button"
+                      onClick={() => setRoleType("job")}
+                      className={`rounded-xl text-xs font-bold transition-all ${roleType === "job" ? 'bg-blue-600 text-white' : 'bg-slate-950/50 text-slate-400 border border-slate-850 hover:bg-slate-900'}`}
+                    >
+                      Job
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRoleType("intern")}
+                      className={`rounded-xl text-xs font-bold transition-all ${roleType === "intern" ? 'bg-blue-600 text-white' : 'bg-slate-950/50 text-slate-400 border border-slate-850 hover:bg-slate-900'}`}
+                    >
+                      Internship
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="glass-card p-6 border border-slate-800">
+              <h2 className="font-outfit text-lg font-bold text-white mb-2">3. Target Company (optional)</h2>
+              <p className="text-xs text-slate-500 mb-4">Specify the company details to analyze alignment and search for their profiles precisely.</p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Company Name</label>
+                  <input
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="e.g., Google, NetSol, Arbisoft"
+                    className="w-full bg-slate-950/50 border border-slate-850 rounded-xl p-3 text-white focus:outline-none focus:border-blue-500 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Location / City (optional)</label>
+                  <input
+                    type="text"
+                    value={companyLocation}
+                    onChange={(e) => setCompanyLocation(e.target.value)}
+                    placeholder="e.g., Lahore, Karachi, Mountain View"
+                    className="w-full bg-slate-950/50 border border-slate-850 rounded-xl p-3 text-white focus:outline-none focus:border-blue-500 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="glass-card p-6 border border-slate-800">
+              <h2 className="font-outfit text-lg font-bold text-white mb-2">4. Job Description (optional)</h2>
               <p className="text-xs text-slate-500 mb-4">Add job description for role-specific scoring (optional)</p>
               <textarea 
                 value={jobDescription}
@@ -244,47 +332,94 @@ export default function AtsScorePage() {
           {/* Results Side */}
           <div className="space-y-6">
             {score !== null ? (
-              <div className="glass-card p-6 border border-slate-800 animate-in fade-in duration-300">
-                <h2 className="font-outfit text-lg font-bold text-white mb-6 text-center md:text-left">ATS Compatibility</h2>
-                
-                <div className="flex flex-col items-center gap-4 mb-8">
-                  <div className={`relative h-32 w-32 rounded-full border-4 flex items-center justify-center ${score >= 75 ? 'border-emerald-500 bg-emerald-500/5' : score >= 40 ? 'border-amber-500 bg-amber-500/5' : 'border-red-500 bg-red-500/5'}`}>
-                    <span className={`text-4xl font-outfit font-extrabold ${score >= 75 ? 'text-emerald-400' : score >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
-                      {score}%
-                    </span>
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="glass-card p-6 border border-slate-800">
+                  <h2 className="font-outfit text-lg font-bold text-white mb-6 text-center md:text-left">ATS Compatibility</h2>
+                  
+                  <div className="flex flex-col items-center gap-4 mb-8">
+                    <div className={`relative h-32 w-32 rounded-full border-4 flex items-center justify-center ${score >= 75 ? 'border-emerald-500 bg-emerald-500/5' : score >= 40 ? 'border-amber-500 bg-amber-500/5' : 'border-red-500 bg-red-500/5'}`}>
+                      <span className={`text-4xl font-outfit font-extrabold ${score >= 75 ? 'text-emerald-400' : score >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
+                        {score}%
+                      </span>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Overall Match Rating</span>
                   </div>
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Overall Match Rating</span>
+
+                  <div className="space-y-4 mb-6">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Scoring Feedback</h4>
+                    <p className="text-sm text-slate-200 leading-relaxed bg-slate-950/40 p-4 rounded-xl border border-slate-850 italic">
+                      "{feedback}"
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Keywords Found</h4>
+                      {keywordsFound.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {keywordsFound.map(k => <span key={k} className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded">{k}</span>)}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-600">None detected.</p>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Keywords Missing</h4>
+                      {keywordsMissing.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {keywordsMissing.map(k => <span key={k} className="text-[10px] bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded">{k}</span>)}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-600 font-medium text-emerald-500">All matching!</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-4 mb-6">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Scoring Feedback</h4>
-                  <p className="text-sm text-slate-200 leading-relaxed bg-slate-950/40 p-4 rounded-xl border border-slate-850 italic">
-                    "{feedback}"
-                  </p>
-                </div>
+                {companyAnalysis && (
+                  <div className="glass-card p-6 border border-slate-800 animate-in slide-in-from-bottom duration-300">
+                    <h2 className="font-outfit text-lg font-bold text-white mb-4">🏢 Target Company: {companyAnalysis.name}</h2>
+                    
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Expected Experience</span>
+                          <p className="text-sm text-slate-200 font-medium">{companyAnalysis.required_experience || "3+ years"}</p>
+                        </div>
+                        {companyAnalysis.detected_tech_stack && companyAnalysis.detected_tech_stack.length > 0 && (
+                          <div>
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">Primary Tech Stack</span>
+                            <div className="flex flex-wrap gap-1">
+                              {companyAnalysis.detected_tech_stack.slice(0, 5).map((tech: string) => (
+                                <span key={tech} className="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded">
+                                  {tech}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Keywords Found</h4>
-                    {keywordsFound.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {keywordsFound.map(k => <span key={k} className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded">{k}</span>)}
+                      <div className="pt-2 border-t border-slate-900">
+                        <span className="text-xs font-bold text-red-400 uppercase tracking-wider block mb-2">Shortcomings / Gaps</span>
+                        <ul className="space-y-1.5 list-disc list-inside text-xs text-slate-300">
+                          {companyAnalysis.shortcomings.map((item: string, i: number) => (
+                            <li key={i} className="leading-relaxed">{item}</li>
+                          ))}
+                        </ul>
                       </div>
-                    ) : (
-                      <p className="text-xs text-slate-600">None detected.</p>
-                    )}
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Keywords Missing</h4>
-                    {keywordsMissing.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {keywordsMissing.map(k => <span key={k} className="text-[10px] bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded">{k}</span>)}
+
+                      <div className="pt-2 border-t border-slate-900">
+                        <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block mb-2">Actionable Recommendations</span>
+                        <ul className="space-y-1.5 list-disc list-inside text-xs text-slate-300">
+                          {companyAnalysis.recommendations.map((item: string, i: number) => (
+                            <li key={i} className="leading-relaxed">{item}</li>
+                          ))}
+                        </ul>
                       </div>
-                    ) : (
-                      <p className="text-xs text-slate-600 font-medium text-emerald-500">All matching!</p>
-                    )}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             ) : (
               <div className="glass-card p-12 text-center border border-slate-800 min-h-[300px] flex flex-col justify-center items-center">
