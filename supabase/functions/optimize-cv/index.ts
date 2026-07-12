@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,9 +13,6 @@ function jsonResponse(body: any, status = 200) {
   });
 }
 
-// ============================================
-// CUSTOM HEURISTIC FORMATTER (NO EXTERNAL AI)
-// ============================================
 const WEAK_VERBS = ["helped", "worked", "did", "made", "handled", "was responsible for", "managed to"];
 const STRONG_VERBS = ["Spearheaded", "Orchestrated", "Engineered", "Architected", "Streamlined", "Optimized", "Executed"];
 
@@ -66,10 +63,10 @@ Deno.serve(async (req) => {
     }
 
     const reqBody = await req.json();
-    const { cv_text, job_description, instruction } = reqBody;
+    const { cv_id, job_description, instruction } = reqBody;
 
-    if (!cv_text || typeof cv_text !== 'string' || cv_text.trim() === '') {
-      return jsonResponse({ success: false, error: "CV text is required" }, 400);
+    if (!cv_id) {
+      return jsonResponse({ success: false, error: "cv_id is required" }, 400);
     }
 
     if (!job_description || typeof job_description !== 'string' || job_description.trim().length < 50) {
@@ -86,65 +83,78 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: "Unauthorized" }, 401);
     }
 
+    // Fetch the parsed text of the CV
+    console.log(`Fetching CV text for optimization: ${cv_id}`);
+    const { data: cvRecord, error: cvError } = await supabase
+      .from("cvs")
+      .select("parsed_text")
+      .eq("id", cv_id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (cvError || !cvRecord) {
+      console.error("Fetch CV error:", cvError);
+      return jsonResponse({ success: false, error: "CV not found or access denied" }, 404);
+    }
+
+    const cv_text = cvRecord.parsed_text || "";
+    if (!cv_text.trim()) {
+      return jsonResponse({ success: false, error: "CV text is empty" }, 400);
+    }
+
     // ============================================
     // RULE-BASED OPTIMIZATION & FORMATTING LOGIC
     // ============================================
     let optimizedText = cv_text;
-    const changes: string[] = [];
+    const ruleChanges: string[] = [];
 
     if (instruction && typeof instruction === 'string') {
-      changes.push(`Custom refinement: ${instruction}`);
+      ruleChanges.push(`Custom refinement: ${instruction}`);
       if (instruction.toLowerCase().includes("remove") || instruction.toLowerCase().includes("delete")) {
         const match = instruction.match(/(?:remove|delete)\s+(\w+)/i);
         if (match && match[1]) {
           const wordToRemove = match[1];
           const regex = new RegExp(`\\b${wordToRemove}\\b`, 'gi');
           optimizedText = optimizedText.replace(regex, "");
-          changes.push(`Removed references to "${wordToRemove}"`);
+          ruleChanges.push(`Removed references to "${wordToRemove}"`);
         }
       }
       optimizedText = `[Refined with feedback: ${instruction.replace("Apply this specific change: ", "")}]\n\n` + optimizedText;
     }
 
-    // 1. Remove any accidental markdown
+    // Remove accidental markdown
     optimizedText = optimizedText.replace(/^#{1,6}\s*/gm, '');
     optimizedText = optimizedText.replace(/\*\*/g, '');
     optimizedText = optimizedText.replace(/__/g, '');
 
-    // 2. Format Section Headers (map custom/varied headers to mandatory ALL CAPS sections)
+    // Format Section Headers
     const sortedKeys = Object.keys(SECTIONS_MAP).sort((a, b) => b.length - a.length);
-    const escapedKeys = sortedKeys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    
-    // Match headers strictly at the start of a line (or after a newline), optionally followed by a colon and spaces, before a newline or end of text.
+    const escapedKeys = sortedKeys.map(k => k.replace(/[.*+?^${}()|[\]\\5]/g, '\\$&'));
     const pattern = new RegExp(`(^|\\r?\\n)\\s*(${escapedKeys.join('|')})\\s*(?::|\\r?\\n|$)`, 'gi');
-    
     optimizedText = optimizedText.replace(pattern, (match, before, p2) => {
       const key = p2.toUpperCase() as keyof typeof SECTIONS_MAP;
       return `${before}\n\n${SECTIONS_MAP[key]}\n`;
     });
 
-    // 3. Reconstruct Bullet Points using SINGLE DASH (-) instead of asterisks or dots
+    // Reconstruct Bullet Points using SINGLE DASH (-)
     if (optimizedText.includes("•")) {
       optimizedText = optimizedText.replace(/•\s*/g, `\n- `);
-      changes.push("Formatted bullet points using a single dash.");
+      ruleChanges.push("Formatted bullet points using a single dash.");
     }
-    
-    // Also convert any standalone * bullets to -
     optimizedText = optimizedText.replace(/^\s*\*\s+/gm, '- ');
 
-    // 4. Replace weak verbs with strong verbs
+    // Replace weak verbs with strong verbs
     WEAK_VERBS.forEach((weakWord, index) => {
       const regex = new RegExp(`\\b${weakWord}\\b`, 'gi');
       if (regex.test(optimizedText)) {
         const strongWord = STRONG_VERBS[index % STRONG_VERBS.length];
         optimizedText = optimizedText.replace(regex, strongWord);
-        changes.push(`Upgraded action verb: "${weakWord}" → "${strongWord}"`);
+        ruleChanges.push(`Upgraded action verb: "${weakWord}" → "${strongWord}"`);
       }
     });
 
-    // 5. Fix broken hyphens — collapse " - " to "-" only within URL-like/slug contexts
+    // Fix broken hyphens inside slugs/URLs
     optimizedText = optimizedText.replace(/(https?:\/\/[^\s]*?)\s+-\s+/g, '$1-');
-    // Fix name-like broken hyphens (lowercase-lowercase pattern)
     optimizedText = optimizedText.replace(/([a-z])\s+-\s+([a-z])/gi, (match, p1, p2) => {
       if (/[a-z]/.test(p1) && /[a-z]/.test(p2)) {
         return `${p1}-${p2}`;
@@ -152,44 +162,19 @@ Deno.serve(async (req) => {
       return match;
     });
 
-    // ============================================
-    // 6. JOB DESCRIPTION-AWARE OPTIMIZATION
-    // ============================================
+    // Extract skills mentioned in JD but missing from CV
     const jdLower = job_description.toLowerCase();
     const cvLower = optimizedText.toLowerCase();
-
-    // Extract skills mentioned in JD but missing from CV
-    const jdSkills: string[] = [];
     const missingSkills: string[] = [];
 
     ALL_SKILLS.forEach(skill => {
-      if (jdLower.includes(skill)) {
-        jdSkills.push(skill);
-        if (!cvLower.includes(skill)) {
-          missingSkills.push(skill);
-        }
+      if (jdLower.includes(skill) && !cvLower.includes(skill)) {
+        missingSkills.push(skill);
       }
     });
 
-    // Extract key phrases from JD (words that appear frequently)
-    const jdWords = jdLower.match(/\b\w{4,}\b/g) || [];
-    const wordFreq: Record<string, number> = {};
-    jdWords.forEach(w => {
-      if (!['with', 'that', 'this', 'from', 'have', 'will', 'been', 'your', 'they', 'their', 'about', 'would', 'could', 'should', 'these', 'those', 'other', 'some', 'into', 'than', 'more', 'also', 'just', 'over', 'such', 'after', 'most', 'only', 'very', 'when', 'what', 'which', 'each', 'were', 'make', 'like', 'then', 'them', 'well', 'back', 'work', 'first', 'even', 'give', 'must'].includes(w)) {
-        wordFreq[w] = (wordFreq[w] || 0) + 1;
-      }
-    });
-
-    const keyTerms = Object.entries(wordFreq)
-      .filter(([, count]) => count >= 2)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([word]) => word);
-
-    // If there are missing skills, append to CORE SKILLS
     if (missingSkills.length > 0) {
       const skillLine = `\n- ${missingSkills.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}`;
-      
       if (cvLower.includes('core skills')) {
         const idx = optimizedText.toUpperCase().indexOf('CORE SKILLS');
         if (idx !== -1) {
@@ -203,33 +188,113 @@ Deno.serve(async (req) => {
             }
           }
           optimizedText = optimizedText.slice(0, nextSectionIdx) + skillLine + '\n' + optimizedText.slice(nextSectionIdx);
-          changes.push(`Added JD-relevant skills to Core Skills: ${missingSkills.join(', ')}`);
+          ruleChanges.push(`Added JD-relevant skills to Core Skills: ${missingSkills.join(', ')}`);
         }
       } else {
         optimizedText += `\n\nCORE SKILLS\n- ${missingSkills.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}`;
-        changes.push(`Added CORE SKILLS section: ${missingSkills.join(', ')}`);
+        ruleChanges.push(`Added CORE SKILLS section: ${missingSkills.join(', ')}`);
       }
     }
 
-    const missingTerms = keyTerms.filter(t => !cvLower.includes(t));
-    if (missingTerms.length > 0) {
-      changes.push(`JD emphasizes these terms: ${missingTerms.join(', ')}`);
+    optimizedText = optimizedText.replace(/\n{3,}/g, '\n\n').trim();
+
+    // ============================================
+    // GEMINI ACTIONABLE SUGGESTIONS GENERATOR
+    // ============================================
+    console.log("Calling Gemini for actionable improvement suggestions...");
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
+    let suggestions = [];
+
+    if (geminiApiKey) {
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+        const geminiRes = await fetch(geminiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `You are an expert recruiter and resume coach. Review the CV text and the target job description. Generate a JSON list of 4-6 specific, actionable, and role-specific suggestions to optimize their CV. Ensure suggestions address metrics, keywords, or structure gaps.
+
+Target Job Description:
+${job_description}
+
+CV Text:
+${cv_text}
+
+Respond ONLY with a JSON array of objects. Do not wrap it in markdown block tags (like \`\`\`json). The JSON array must look like this:
+[
+  { "category": "Impact/Keywords/Formatting/Skills", "issue": "Brief description of weakness", "recommendation": "Rewrite or action suggestion" }
+]`
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              responseMimeType: "application/json"
+            }
+          })
+        });
+
+        if (geminiRes.ok) {
+          const resData = await geminiRes.json();
+          const jsonText = resData.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+          suggestions = JSON.parse(jsonText);
+        } else {
+          console.warn("Gemini suggestions fetch failed:", await geminiRes.text());
+        }
+      } catch (geminiError) {
+        console.error("Gemini suggestions error:", geminiError);
+      }
     }
-    changes.push("Optimization tailored to the job description.");
 
-    // 7. Clean up spacing
-    optimizedText = optimizedText.replace(/\n{3,}/g, '\n\n');
+    // Fallback suggestions if Gemini failed
+    if (suggestions.length === 0) {
+      suggestions = ruleChanges.map(change => ({
+        category: "Rule-Based Optimizer",
+        issue: "Formatting alignment check",
+        recommendation: change
+      }));
+      if (suggestions.length === 0) {
+        suggestions.push({
+          category: "General",
+          issue: "Unoptimized metrics",
+          recommendation: "Ensure achievements list metrics (e.g. revenue, load times, team size)."
+        });
+      }
+    }
 
-    const resultPayload = {
+    // ============================================
+    // SAVE OPTIMIZED VERSION TO DATABASE
+    // ============================================
+    console.log("Saving optimized CV to public.optimized_cvs...");
+    const { data: optData, error: optError } = await supabase
+      .from("optimized_cvs")
+      .insert({
+        cv_id: cv_id,
+        job_description: job_description,
+        optimized_text: optimizedText,
+        suggestions: suggestions
+      })
+      .select("id")
+      .single();
+
+    if (optError || !optData) {
+      console.error("Database insert error in optimized_cvs:", optError);
+      return jsonResponse({ success: false, error: "Failed to save optimized CV to database" }, 500);
+    }
+
+    return jsonResponse({
       success: true,
-      optimized_cv_text: optimizedText.trim(),
-      changes_made: changes
-    };
+      optimized_cv_id: optData.id,
+      optimized_cv_text: optimizedText,
+      changes_made: suggestions
+    });
 
-    return jsonResponse(resultPayload);
-
-  } catch (err) {
-    console.error("Unexpected error:", err);
-    return jsonResponse({ success: false, error: "Internal server error" }, 500);
+  } catch (err: any) {
+    console.error("Unexpected error in optimize-cv:", err);
+    return jsonResponse({ success: false, error: err.message || "Internal server error" }, 500);
   }
 });

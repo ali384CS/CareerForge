@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Outfit } from "next/font/google";
 import Navbar from "@/components/Navbar";
+import { CvProvider } from "@/lib/CvContext";
+import AppLayout from "@/components/AppLayout";
 import "./globals.css";
 
 const inter = Inter({
@@ -31,10 +33,14 @@ export default function RootLayout({
         suppressHydrationWarning
         className={`${inter.variable} ${outfit.variable} antialiased bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col`}
       >
-        <Navbar />
-        <main className="flex-1">
-          {children}
-        </main>
+        <CvProvider>
+          <Navbar />
+          <div className="flex-1 flex flex-col">
+            <AppLayout>
+              {children}
+            </AppLayout>
+          </div>
+        </CvProvider>
       </body>
     </html>
   );
