@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Outfit } from "next/font/google";
-import { CvProvider } from "@/lib/CvContext";
+import SlideInPanel from "@/components/layout/SlideInPanel";
 import "./globals.css";
 
 const inter = Inter({
@@ -26,14 +26,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body
         suppressHydrationWarning
-        className={`${inter.variable} ${outfit.variable} antialiased bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans min-h-screen flex flex-col`}
+        className={`${inter.variable} ${outfit.variable} antialiased bg-[#FAFAFA] text-[#171717] font-sans min-h-screen flex flex-col`}
       >
-        <CvProvider>
-          {children}
-        </CvProvider>
+        {children}
+        <SlideInPanel />
       </body>
     </html>
   );

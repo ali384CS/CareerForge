@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Hammer } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { pageTransition } from "@/lib/animations";
 import Input from "@/components/ui/Input";
@@ -22,7 +22,7 @@ export default function SignupPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        router.push("/dashboard");
+        router.push("/");
       } else {
         setCheckingAuth(false);
       }
@@ -31,8 +31,8 @@ export default function SignupPage() {
 
   if (checkingAuth) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh]">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-600"></div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#FAFAFA]">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#6366F1]"></div>
       </div>
     );
   }
@@ -64,22 +64,27 @@ export default function SignupPage() {
       animate="animate"
       exit="exit"
       variants={pageTransition}
-      className="flex flex-col items-center justify-center min-h-[85vh] px-4"
+      className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center px-4 py-12"
     >
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md p-8 rounded-2xl shadow-xl">
-        <div className="text-center mb-6">
-          <h1 className="font-outfit text-3xl font-bold text-slate-900 dark:text-white">Create Account</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">Start forging your career journey.</p>
+      <div className="bg-white border border-slate-200/80 w-full max-w-md p-8 rounded-2xl shadow-sm">
+        
+        {/* Brand */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center h-10 w-10 rounded-xl bg-indigo-50 border border-indigo-100 text-[#6366F1] mb-3">
+            <Hammer className="w-5 h-5" />
+          </div>
+          <h1 className="font-outfit text-2xl font-bold text-[#171717]">Create Account</h1>
+          <p className="text-[#6B7280] text-xs mt-1">Start forging your career journey.</p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/25 text-xs text-red-650 dark:text-red-400 font-medium">
+          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-655 font-medium">
             {error}
           </div>
         )}
 
         {infoMessage && (
-          <div className="mb-4 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-xs text-indigo-650 dark:text-indigo-400 font-medium">
+          <div className="mb-4 p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-xs text-indigo-650 font-medium">
             {infoMessage}
           </div>
         )}
@@ -106,15 +111,15 @@ export default function SignupPage() {
           />
 
           <div className="pt-2">
-            <Button type="submit" loading={loading} className="w-full h-[42px] flex items-center justify-center gap-2">
+            <Button type="submit" loading={loading} className="w-full h-[42px] bg-[#6366F1] hover:bg-[#4F46E5] flex items-center justify-center gap-2 rounded-xl text-sm">
               <UserPlus className="w-4 h-4" /> Sign Up
             </Button>
           </div>
         </form>
 
-        <div className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
+        <div className="mt-6 text-center text-xs text-[#6B7280]">
           Already have an account?{" "}
-          <Link href="/login" className="text-indigo-650 hover:underline dark:text-indigo-400 font-semibold">
+          <Link href="/login" className="text-[#6366F1] hover:underline font-semibold">
             Log In
           </Link>
         </div>

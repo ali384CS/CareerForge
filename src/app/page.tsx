@@ -1,123 +1,122 @@
 "use client";
 
-import Link from "next/link";
-import { motion } from "framer-motion";
-import { Hammer, ArrowRight, ShieldCheck, Cpu, Briefcase, Download } from "lucide-react";
-import { pageTransition, listContainer, listItem } from "@/lib/animations";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Hammer, Loader2, Upload } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { useCvStore } from "@/store/useCvStore";
+import Button from "@/components/ui/Button";
 
 export default function Home() {
+  const router = useRouter();
+  const { uploadCv, fetchCvs, uploading, uploadProgress } = useCvStore();
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        router.push("/login");
+      } else {
+        fetchCvs().then(() => setCheckingAuth(false));
+      }
+    });
+  }, [router, fetchCvs]);
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    setError(null);
+
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext !== 'pdf' && ext !== 'docx') {
+      setError("Only .pdf and .docx CV files are supported.");
+      return;
+    }
+
+    const res = await uploadCv(file);
+    if (!res.success) {
+      setError(res.error || "Failed to upload and parse CV.");
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#6366F1]" />
+      </div>
+    );
+  }
+
   return (
-    <motion.div
-      initial="initial"
-      animate="animate"
-      variants={pageTransition}
-      className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col justify-between"
-    >
-      {/* Header */}
-      <header className="w-full border-b border-slate-100 dark:border-slate-900 bg-white/60 dark:bg-slate-950/60 backdrop-blur-md sticky top-0 z-50">
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 font-outfit text-lg font-bold tracking-tight text-slate-900 dark:text-white">
-            <div className="h-8 w-8 rounded-lg bg-indigo-650 flex items-center justify-center text-white shadow-sm">
-              <Hammer className="w-4.5 h-4.5" />
-            </div>
-            <span>CareerForge</span>
-          </Link>
-          <Link href="/dashboard">
-            <button className="bg-indigo-600 hover:bg-indigo-750 text-white font-bold px-4 py-2 rounded-xl transition-all text-xs shadow-sm active:scale-97">
-              Dashboard
-            </button>
-          </Link>
-        </div>
-      </header>
+    <main className="min-h-screen bg-[#FAFAFA] text-[#171717] flex flex-col items-center justify-center p-6 select-none relative overflow-hidden">
+      
+      {/* Hidden input for files */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept=".pdf,.docx"
+        className="hidden"
+      />
 
-      {/* Hero Section */}
-      <main className="flex-1 flex flex-col items-center justify-center py-20 px-6 max-w-5xl mx-auto w-full text-center space-y-12">
-        <div className="space-y-6">
-          <div className="inline-block px-4 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 text-xs font-semibold text-indigo-755 dark:text-indigo-400 tracking-wide uppercase">
-            Introducing CareerForge 2.0
+      <div className="w-full max-w-lg space-y-12">
+        {/* 1. About Us Section */}
+        <section className="space-y-4 text-center">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-[#6366F1] shadow-sm mb-2">
+            <Hammer className="w-6 h-6" />
           </div>
-          
-          <h1 className="font-outfit text-4xl sm:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight max-w-3xl mx-auto">
-            Transform Your CV <br/>
-            <span className="text-indigo-600 dark:text-indigo-400">
-              Into a Job Magnet
-            </span>
+          <h1 className="font-outfit text-3xl font-extrabold tracking-tight text-[#171717]">
+            CareerForge
           </h1>
-          
-          <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 max-w-xl mx-auto font-light leading-relaxed">
-            Personalized AI resume optimizer, interactive compatibility checks, and automated job matching templates. Verify your profile against target recruitment metrics.
+          <p className="text-[#6B7280] text-sm leading-relaxed max-w-md mx-auto">
+            CareerForge is an AI-powered resume enhancement platform that analyzes developer profiles. Upload your CV to check compatibility ratings, discover missing keyword gaps, optimize bullets, and match remote job listings.
           </p>
-        </div>
-        
-        <div className="pt-2">
-          <Link href="/dashboard">
-            <button className="inline-flex items-center gap-2 font-bold bg-indigo-600 hover:bg-indigo-755 text-white px-8 py-3.5 rounded-xl text-sm transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-97">
-              <span>Go to Dashboard</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </Link>
-        </div>
+        </section>
 
-        {/* Feature Highlights */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 w-full pt-16 border-t border-slate-200 dark:border-slate-900">
-          
-          {/* Card 1 */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 p-6 rounded-2xl text-left space-y-4 shadow-sm hover:border-indigo-500/30 hover:scale-[1.01] transition-all">
-            <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/20 rounded-xl flex items-center justify-center border border-indigo-100 dark:border-indigo-900/35">
-              <ShieldCheck className="w-5 h-5 text-indigo-650 dark:text-indigo-400" />
-            </div>
-            <h3 className="font-outfit font-bold text-slate-855 dark:text-white text-base">ATS Compatibility</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed font-light">
-              Interactive cosine TF-IDF scoring and detailed keyword checklists to identify resume optimization weaknesses.
+        {/* 2. Centered Upload Button */}
+        <section className="flex flex-col items-center space-y-4">
+          <Button
+            onClick={handleUploadClick}
+            disabled={uploading}
+            className="w-full max-w-xs h-[48px] bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold rounded-xl shadow-sm transition-all duration-200 flex items-center justify-center gap-2 text-sm relative"
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Uploading...</span>
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4" />
+                <span>Upload Your CV</span>
+              </>
+            )}
+          </Button>
+
+          {uploading && (
+            <p className="text-xs text-[#6B7280] animate-pulse transition-all">
+              {uploadProgress}
             </p>
-          </div>
+          )}
 
-          {/* Card 2 */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 p-6 rounded-2xl text-left space-y-4 shadow-sm hover:border-indigo-500/30 hover:scale-[1.01] transition-all">
-            <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/20 rounded-xl flex items-center justify-center border border-indigo-100 dark:border-indigo-900/35">
-              <Cpu className="w-5 h-5 text-indigo-650 dark:text-indigo-400" />
-            </div>
-            <h3 className="font-outfit font-bold text-slate-855 dark:text-white text-base">Gemini Optimization</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed font-light">
-              One-click resume rephrasing and structure alignment matching the target recruitment roles constraints.
+          {error && (
+            <p className="text-xs text-red-500 bg-red-50 border border-red-200/50 px-3 py-2 rounded-lg text-center max-w-xs">
+              {error}
             </p>
-          </div>
+          )}
+        </section>
+      </div>
 
-          {/* Card 3 */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 p-6 rounded-2xl text-left space-y-4 shadow-sm hover:border-indigo-500/30 hover:scale-[1.01] transition-all">
-            <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/20 rounded-xl flex items-center justify-center border border-indigo-100 dark:border-indigo-900/35">
-              <Briefcase className="w-5 h-5 text-indigo-650 dark:text-indigo-400" />
-            </div>
-            <h3 className="font-outfit font-bold text-slate-855 dark:text-white text-base">Developer Matches</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed font-light">
-              Fallback chains connecting local and international job aggregators to fetch matches based on technical keywords.
-            </p>
-          </div>
-
-          {/* Card 4 */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 p-6 rounded-2xl text-left space-y-4 shadow-sm hover:border-indigo-500/30 hover:scale-[1.01] transition-all">
-            <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/20 rounded-xl flex items-center justify-center border border-indigo-100 dark:border-indigo-900/35">
-              <Download className="w-5 h-5 text-indigo-650 dark:text-indigo-400" />
-            </div>
-            <h3 className="font-outfit font-bold text-slate-855 dark:text-white text-base">Perfect PDF Export</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed font-light">
-              Rebuild, compile, and format single-page plain-text CV sheets to save or download in recruiter-approved PDF format.
-            </p>
-          </div>
-
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="w-full border-t border-slate-100 dark:border-slate-900 py-6 text-center text-[10px] text-slate-400">
-        <div className="container mx-auto px-6 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <p>© {new Date().getFullYear()} CareerForge - AI Powered Resume Platform.</p>
-          <div className="flex gap-4">
-            <a href="#features" className="hover:text-indigo-500 transition-colors">Features</a>
-            <a href="/login" className="hover:text-indigo-500 transition-colors">Sign In</a>
-          </div>
-        </div>
-      </footer>
-    </motion.div>
+    </main>
   );
 }
