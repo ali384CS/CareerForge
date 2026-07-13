@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import CvSidebar from "./CvSidebar";
+import AppSidebar from "./AppSidebar";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -46,7 +46,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex flex-col md:flex-row flex-1 min-h-[calc(100vh-4rem)]">
-      <CvSidebar />
+      <AppSidebar />
       <div className="flex-1 min-w-0 bg-slate-950 text-slate-100">
         {children}
       </div>

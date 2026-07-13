@@ -24,6 +24,7 @@ interface CvContextType {
   refreshCvs: () => Promise<void>;
   setActiveCv: (id: string) => Promise<boolean>;
   uploadCv: (file: File) => Promise<{ success: boolean; cv_id?: string; error?: string }>;
+  deleteCv: (id: string) => Promise<boolean>;
 }
 
 const CvContext = createContext<CvContextType | undefined>(undefined);
@@ -199,6 +200,65 @@ export function CvProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Delete CV and storage file
+  const deleteCv = async (id: string): Promise<boolean> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) throw new Error("You must be logged in to delete files.");
+
+      // 1. Get the CV record to find file_url
+      const cvToDelete = cvList.find(c => c.id === id);
+      if (!cvToDelete) return false;
+
+      // 2. Delete from Supabase Storage
+      if (cvToDelete.file_url) {
+        const { error: storageError } = await supabase.storage
+          .from("cv-uploads")
+          .remove([cvToDelete.file_url]);
+        
+        if (storageError) {
+          console.warn("Storage deletion warning:", storageError);
+        }
+      }
+
+      // 3. Delete from database
+      const { error: dbError } = await supabase
+        .from("cvs")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", session.user.id);
+
+      if (dbError) throw dbError;
+
+      // 4. Update state
+      const remaining = cvList.filter(c => c.id !== id);
+      setCvList(remaining);
+
+      // If active CV was deleted, reset or select next
+      if (activeCvId === id) {
+        if (remaining.length > 0) {
+          const nextActive = remaining[0];
+          setActiveCvId(nextActive.id);
+          setActiveCvFilename(nextActive.filename);
+          setActiveCvText(nextActive.parsed_text);
+          
+          // Mark active in DB
+          await supabase.from("cvs").update({ is_active: true }).eq("id", nextActive.id);
+          await supabase.from("cvs").update({ is_active: false }).eq("user_id", session.user.id).neq("id", nextActive.id);
+        } else {
+          setActiveCvId(null);
+          setActiveCvFilename(null);
+          setActiveCvText(null);
+        }
+      }
+
+      return true;
+    } catch (err) {
+      console.error("Error deleting CV:", err);
+      return false;
+    }
+  };
+
   // Listen for auth changes and fetch list
   useEffect(() => {
     refreshCvs();
@@ -230,7 +290,8 @@ export function CvProvider({ children }: { children: React.ReactNode }) {
         uploadProgress,
         refreshCvs,
         setActiveCv,
-        uploadCv
+        uploadCv,
+        deleteCv
       }}
     >
       {children}
