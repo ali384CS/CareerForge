@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
       parsedText = resJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
     } else if (ext === 'docx') {
       console.log("Parsing DOCX CV with Mammoth...");
-      const result = await mammoth.extractRawText({ arrayBuffer });
+      const result = await mammoth.extractRawText({ buffer: fileBytes });
       parsedText = result.value || "";
     } else {
       console.log("Parsing generic CV as plain text...");

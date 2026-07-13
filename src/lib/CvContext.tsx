@@ -25,6 +25,7 @@ interface CvContextType {
   setActiveCv: (id: string) => Promise<boolean>;
   uploadCv: (file: File) => Promise<{ success: boolean; cv_id?: string; error?: string }>;
   deleteCv: (id: string) => Promise<boolean>;
+  renameCv: (id: string, newFilename: string) => Promise<boolean>;
 }
 
 const CvContext = createContext<CvContextType | undefined>(undefined);
@@ -259,6 +260,32 @@ export function CvProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Rename CV
+  const renameCv = async (id: string, newFilename: string): Promise<boolean> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) throw new Error("Unauthorized");
+
+      const { error } = await supabase
+        .from("cvs")
+        .update({ filename: newFilename })
+        .eq("id", id)
+        .eq("user_id", session.user.id);
+
+      if (error) throw error;
+
+      // Update state
+      setCvList(prev => prev.map(c => c.id === id ? { ...c, filename: newFilename } : c));
+      if (activeCvId === id) {
+        setActiveCvFilename(newFilename);
+      }
+      return true;
+    } catch (err) {
+      console.error("Error renaming CV:", err);
+      return false;
+    }
+  };
+
   // Listen for auth changes and fetch list
   useEffect(() => {
     refreshCvs();
@@ -291,7 +318,8 @@ export function CvProvider({ children }: { children: React.ReactNode }) {
         refreshCvs,
         setActiveCv,
         uploadCv,
-        deleteCv
+        deleteCv,
+        renameCv
       }}
     >
       {children}
