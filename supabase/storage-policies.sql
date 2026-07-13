@@ -29,6 +29,7 @@ ON CONFLICT (id) DO NOTHING;
 -- Policy: Authenticated users can upload files to their own folder
 -- Files are stored as: {user_id}/{timestamp}_{filename}
 -- This policy checks that the first folder in the path matches the user's ID
+DROP POLICY IF EXISTS "Users can upload their own CVs" ON storage.objects;
 CREATE POLICY "Users can upload their own CVs"
     ON storage.objects
     FOR INSERT
@@ -39,6 +40,7 @@ CREATE POLICY "Users can upload their own CVs"
     );
 
 -- Policy: Users can only read (download) their own files
+DROP POLICY IF EXISTS "Users can read their own CVs" ON storage.objects;
 CREATE POLICY "Users can read their own CVs"
     ON storage.objects
     FOR SELECT
@@ -49,6 +51,7 @@ CREATE POLICY "Users can read their own CVs"
     );
 
 -- Policy: Users can delete their own files
+DROP POLICY IF EXISTS "Users can delete their own CVs" ON storage.objects;
 CREATE POLICY "Users can delete their own CVs"
     ON storage.objects
     FOR DELETE
@@ -59,6 +62,7 @@ CREATE POLICY "Users can delete their own CVs"
     );
 
 -- Policy: Users can update (overwrite) their own files
+DROP POLICY IF EXISTS "Users can update their own CVs" ON storage.objects;
 CREATE POLICY "Users can update their own CVs"
     ON storage.objects
     FOR UPDATE
