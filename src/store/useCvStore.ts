@@ -21,8 +21,10 @@ interface CvState {
   // Setters & Actions
   setPanelOpen: (open: boolean) => void;
   setActiveCvId: (id: string | null) => void;
+  setUploading: (uploading: boolean) => void;
+  setUploadProgress: (progress: string) => void;
   fetchCvs: () => Promise<void>;
-  uploadCv: (file: File) => Promise<{ success: boolean; cv_id?: string; error?: string }>;
+  uploadCv: (payload: { file_url: string; filename: string }) => Promise<{ success: boolean; cv_id?: string; error?: string }>;
   deleteCv: (id: string) => Promise<boolean>;
   deselectActiveCv: () => void;
 }
@@ -38,6 +40,8 @@ export const useCvStore = create<CvState>((set, get) => ({
   uploadProgress: "",
 
   setPanelOpen: (open) => set({ isPanelOpen: open }),
+  setUploading: (uploading) => set({ uploading }),
+  setUploadProgress: (progress) => set({ uploadProgress: progress }),
   
   setActiveCvId: (id) => {
     if (id) {
@@ -78,11 +82,14 @@ export const useCvStore = create<CvState>((set, get) => ({
 
       const { data, error } = await supabase
         .from("cvs")
-        .select("id, filename, uploaded_at, parsed_text")
+        .select("*")
         .eq("user_id", session.user.id)
         .order("uploaded_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('fetchCvs error:', error.message, error.details, error.hint);
+        throw error;
+      }
       
       const records: CvRecord[] = (data || []).map(r => ({
         id: r.id,
@@ -115,23 +122,18 @@ export const useCvStore = create<CvState>((set, get) => ({
     }
   },
 
-  uploadCv: async (file: File) => {
-    set({ uploading: true, uploadProgress: "Uploading file to storage..." });
+  uploadCv: async ({ file_url, filename }: { file_url: string; filename: string }) => {
+    if (!file_url || !filename) {
+      console.error("uploadCv error: Missing file_url or filename in payload", { file_url, filename });
+      return { success: false, error: "Missing file_url or filename in request" };
+    }
+
+    set({ uploading: true, uploadProgress: "Calling AI model to extract resume text..." });
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) throw new Error("Unauthorized");
 
-      // 1. Upload file to Supabase storage bucket
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
-      const { data: storageData, error: storageError } = await supabase.storage
-        .from("cv-uploads")
-        .upload(fileName, file, { upsert: true });
-
-      if (storageError) throw storageError;
-
-      // 2. Call Edge Function to parse text and save in database
-      set({ uploadProgress: "Calling AI model to extract resume text..." });
+      // Call Edge Function to parse text and save in database
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
       const parseRes = await fetch(`${supabaseUrl}/functions/v1/parse-cv`, {
         method: "POST",
@@ -140,8 +142,8 @@ export const useCvStore = create<CvState>((set, get) => ({
           "Authorization": `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
-          filePath: storageData.path,
-          filename: file.name
+          file_url,
+          filename
         })
       });
 

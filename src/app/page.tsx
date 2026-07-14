@@ -9,7 +9,7 @@ import Button from "@/components/ui/Button";
 
 export default function Home() {
   const router = useRouter();
-  const { uploadCv, fetchCvs, uploading, uploadProgress } = useCvStore();
+  const { uploadCv, fetchCvs, uploading, uploadProgress, setUploading, setUploadProgress } = useCvStore();
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -39,13 +39,42 @@ export default function Home() {
       return;
     }
 
-    const res = await uploadCv(file);
-    if (!res.success) {
-      setError(res.error || "Failed to upload and parse CV.");
-    }
+    try {
+      setUploading(true);
+      setUploadProgress("Checking session...");
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        throw new Error("Unauthorized: Please sign in to upload your CV.");
+      }
+
+      setUploadProgress("Uploading file to storage...");
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${session.user.id}/${Date.now()}.${fileExt}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('cv-uploads')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      setUploadProgress("Retrieving file URL...");
+      const { data: urlData } = supabase.storage.from('cv-uploads').getPublicUrl(filePath);
+
+      setUploadProgress("Extracting CV text...");
+      const res = await uploadCv({ file_url: urlData.publicUrl, filename: file.name });
+      if (!res.success) {
+        setError(res.error || "Failed to parse CV.");
+      }
+    } catch (err: any) {
+      console.error("Error during file upload/parse:", err);
+      setError(err.message || "Failed to upload and parse CV.");
+    } finally {
+      setUploading(false);
+      setUploadProgress("");
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 

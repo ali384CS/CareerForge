@@ -41,11 +41,32 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: "Missing file_url or filename in request" }, 400);
     }
 
+    // Extract path from public URL if it starts with http/https
+    let storagePath = file_url;
+    if (file_url.startsWith("http://") || file_url.startsWith("https://")) {
+      try {
+        const url = new URL(file_url);
+        // Look for the bucket name segment in the URL path to extract the relative path
+        const parts = url.pathname.split("/cv-uploads/");
+        if (parts.length > 1) {
+          storagePath = decodeURIComponent(parts[1]);
+        } else {
+          // fallback if bucket matches cvs or something else
+          const cvsParts = url.pathname.split("/cvs/");
+          if (cvsParts.length > 1) {
+            storagePath = decodeURIComponent(cvsParts[1]);
+          }
+        }
+      } catch (e) {
+        console.error("Error parsing URL in edge function:", e);
+      }
+    }
+
     // Download the file from Supabase Storage
-    console.log(`Downloading file from storage: ${file_url}`);
+    console.log(`Downloading file from storage path: ${storagePath}`);
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('cv-uploads')
-      .download(file_url);
+      .download(storagePath);
 
     if (downloadError || !fileData) {
       console.error("Storage download error:", downloadError);
