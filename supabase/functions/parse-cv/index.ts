@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.0";
 import mammoth from "https://esm.sh/mammoth@1.6.0";
-import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
+import { getDocumentProxy, extractText } from "npm:unpdf";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -79,46 +79,15 @@ Deno.serve(async (req) => {
 
     const ext = filename.split('.').pop()?.toLowerCase();
     if (ext === 'pdf') {
-      console.log("Parsing PDF CV with Gemini...");
-      const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
-      if (!geminiApiKey) {
-        console.error("Missing GEMINI_API_KEY secret");
-        return jsonResponse({ success: false, error: "Server error: Gemini key is not configured" }, 500);
+      console.log("Parsing PDF CV with unpdf...");
+      try {
+        const pdf = await getDocumentProxy(new Uint8Array(fileBytes));
+        const { text } = await extractText(pdf, { mergePages: true });
+        parsedText = text || "";
+      } catch (pdfError: any) {
+        console.error("unpdf text extraction failed:", pdfError);
+        return jsonResponse({ success: false, error: `PDF text extraction failed: ${pdfError.message}` }, 500);
       }
-
-      const base64Data = encodeBase64(fileBytes);
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
-
-      const response = await fetch(geminiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  inlineData: {
-                    mimeType: "application/pdf",
-                    data: base64Data
-                  }
-                },
-                {
-                  text: "Extract all textual information from this CV exactly as it appears. Do not translate, do not summarize, do not add any markdown blocks (like ```txt), and do not comment on it. Provide only the raw plain text of the resume."
-                }
-              ]
-            }
-          ]
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Gemini API call failed:", errorText);
-        return jsonResponse({ success: false, error: `Gemini parsing failed: ${response.statusText}` }, 500);
-      }
-
-      const resJson = await response.json();
-      parsedText = resJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
     } else if (ext === 'docx') {
       console.log("Parsing DOCX CV with Mammoth...");
       const result = await mammoth.extractRawText({ buffer: fileBytes });
